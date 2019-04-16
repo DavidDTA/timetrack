@@ -13,13 +13,16 @@
             "justinmimbs/date": "3.1.2",
             "justinmimbs/timezone-data": "2.1.2",
             "mdgriffith/elm-ui": "1.1.0",
+            "rtfeldman/elm-css": "16.0.1",
             "turboMaCk/any-dict": "1.0.1"
         },
         "indirect": {
+            "Skinney/murmur3": "2.0.8",
             "elm/json": "1.1.2",
             "elm/parser": "1.1.0",
             "elm/time": "1.0.0",
-            "elm/virtual-dom": "1.0.2"
+            "elm/virtual-dom": "1.0.2",
+            "rtfeldman/elm-hex": "1.0.0"
         }
     },
     "test-dependencies": {

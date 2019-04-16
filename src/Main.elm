@@ -3,9 +3,10 @@ module Main exposing (main)
 import Browser
 import Browser.Navigation
 import Date
-import Html
 import Task
+import TimeZone
 import Url
+import View
 
 
 main =
@@ -62,9 +63,15 @@ view model =
                 []
 
             Normal model_ ->
-                [ viewBody model_ ]
+                View.toHtml (viewBody model_)
     }
 
 
 viewBody model =
-    Html.h1 [] [ Html.text (Date.toIsoString model.date) ]
+    View.verticalScroll
+        [ View.title (View.text (Date.toIsoString model.date))
+        ]
+
+
+timezone =
+    TimeZone.asia__shanghai ()
