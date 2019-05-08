@@ -74,4 +74,4 @@ viewBody model =
 
 
 timezone =
-    TimeZone.asia__shanghai ()
+    TimeZone.america__new_york ()
