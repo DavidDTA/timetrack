@@ -1,6 +1,7 @@
-module View exposing (Text, text, title, toHtml, verticalList, verticalScroll)
+module View exposing (Text, text, toHtml, verticalList, verticalScroll, centered)
 
 import Html
+import Html.Attributes
 
 
 type Text
@@ -27,14 +28,14 @@ type FixedWidth
     = FixedWidth
 
 
-title : Text -> Block FillWidth FixedHeight msg
-title (Text titleText) =
-    Block { html = Html.h1 [] [ Html.text titleText ] }
+centered : Block FixedWidth FixedHeight msg -> Block FillWidth FixedHeight msg
+centered (Block { html }) =
+    Block { html = Html.div [ Html.Attributes.style "text-align" "center"] [ html ] }
 
 
-text : String -> Text
-text =
-    Text
+text : String -> Block FixedWidth FixedHeight msg
+text value =
+    Block { html = Html.span [ Html.Attributes.style "white-space" "pre" ] [ Html.text value ]}
 
 
 verticalScroll : List (Block FillWidth FixedHeight msg) -> Block FillWidth FillHeight msg
@@ -53,13 +54,11 @@ staticCss =
 html, body {
   width: 100%;
   height: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
 }
 * {
   margin: 0;
   padding: 0;
+  overflow: hidden;
   font-family: 'Nunito', sans-serif;
 }
 """

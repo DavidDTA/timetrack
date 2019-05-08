@@ -69,7 +69,7 @@ view model =
 
 viewBody model =
     View.verticalScroll
-        [ View.title (View.text (Date.toIsoString model.date))
+        [ View.centered (View.text (Date.toIsoString model.date))
         ]
 
 
