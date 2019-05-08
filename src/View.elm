@@ -1,4 +1,4 @@
-module View exposing (Text, text, toHtml, verticalList, verticalScroll, centered)
+module View exposing (Text, centered, text, toHtml, verticalList, verticalScroll)
 
 import Html
 import Html.Attributes
@@ -30,17 +30,24 @@ type FixedWidth
 
 centered : Block FixedWidth FixedHeight msg -> Block FillWidth FixedHeight msg
 centered (Block { html }) =
-    Block { html = Html.div [ Html.Attributes.style "text-align" "center"] [ html ] }
+    Block { html = Html.div [ Html.Attributes.style "text-align" "center" ] [ html ] }
 
 
 text : String -> Block FixedWidth FixedHeight msg
 text value =
-    Block { html = Html.span [ Html.Attributes.style "white-space" "pre" ] [ Html.text value ]}
+    Block { html = Html.span [ Html.Attributes.style "white-space" "pre" ] [ Html.text value ] }
 
 
 verticalScroll : List (Block FillWidth FixedHeight msg) -> Block FillWidth FillHeight msg
 verticalScroll contents =
-    Block { html = Html.div [] (contents |> List.map (\(Block { html }) -> html)) }
+    Block
+        { html =
+            Html.div
+                [ Html.Attributes.style "overflow-y" "scroll"
+                , Html.Attributes.style "height" "100%"
+                ]
+                (contents |> List.map (\(Block { html }) -> html))
+        }
 
 
 verticalList : List (Block FillWidth FixedHeight msg) -> Block FillWidth FixedHeight msg
