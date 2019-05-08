@@ -1,4 +1,4 @@
-module View exposing (Text, text, title, toHtml, verticalRow, verticalScroll)
+module View exposing (Text, text, title, toHtml, verticalList, verticalScroll)
 
 import Html
 
@@ -42,8 +42,8 @@ verticalScroll contents =
     Block { html = Html.div [] (contents |> List.map (\(Block { html }) -> html)) }
 
 
-verticalRow : List (Block FillWidth FixedHeight msg) -> Block FillWidth FixedHeight msg
-verticalRow contents =
+verticalList : List (Block FillWidth FixedHeight msg) -> Block FillWidth FixedHeight msg
+verticalList contents =
     Block { html = Html.div [] (contents |> List.map (\(Block { html }) -> html)) }
 
 
