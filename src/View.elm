@@ -1,9 +1,6 @@
 module View exposing (Text, text, title, toHtml, verticalRow, verticalScroll)
 
-import Css
-import Css.Global
 import Html
-import Html.Styled
 
 
 type Text
@@ -50,24 +47,20 @@ verticalRow contents =
     Block { html = Html.div [] (contents |> List.map (\(Block { html }) -> html)) }
 
 
+staticCss =
+    """
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+"""
+
+
 toHtml : Block FillHeight FillWidth msg -> List (Html.Html msg)
 toHtml (Block { html }) =
-    [ Css.Global.global
-        [ Css.Global.html
-            [ Css.width (Css.pct 100)
-            , Css.height (Css.pct 100)
-            , Css.margin Css.zero
-            , Css.padding Css.zero
-            , Css.overflow Css.hidden
-            ]
-        , Css.Global.body
-            [ Css.width (Css.pct 100)
-            , Css.height (Css.pct 100)
-            , Css.margin Css.zero
-            , Css.padding Css.zero
-            , Css.overflow Css.hidden
-            ]
-        ]
-        |> Html.Styled.toUnstyled
+    [ Html.node "style" [] [ Html.text staticCss ]
     , html
     ]
