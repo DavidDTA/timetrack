@@ -7,7 +7,7 @@ type Text
     = Text String
 
 
-type Block height width msg
+type Block width height msg
     = Block { html : Html.Html msg }
 
 
@@ -27,7 +27,7 @@ type FixedWidth
     = FixedWidth
 
 
-title : Text -> Block FixedHeight FillWidth msg
+title : Text -> Block FillWidth FixedHeight msg
 title (Text titleText) =
     Block { html = Html.h1 [] [ Html.text titleText ] }
 
@@ -37,12 +37,12 @@ text =
     Text
 
 
-verticalScroll : List (Block FixedHeight FillWidth msg) -> Block FillHeight FillWidth msg
+verticalScroll : List (Block FillWidth FixedHeight msg) -> Block FillWidth FillHeight msg
 verticalScroll contents =
     Block { html = Html.div [] (contents |> List.map (\(Block { html }) -> html)) }
 
 
-verticalRow : List (Block FixedHeight FillWidth msg) -> Block FixedHeight FillWidth msg
+verticalRow : List (Block FillWidth FixedHeight msg) -> Block FillWidth FixedHeight msg
 verticalRow contents =
     Block { html = Html.div [] (contents |> List.map (\(Block { html }) -> html)) }
 
@@ -65,7 +65,7 @@ html, body {
 """
 
 
-toHtml : Block FillHeight FillWidth msg -> List (Html.Html msg)
+toHtml : Block FillWidth FillHeight msg -> List (Html.Html msg)
 toHtml (Block { html }) =
     [ Html.node "style" [] [ Html.text staticCss ]
     , html
