@@ -3,7 +3,7 @@ module Main exposing (main)
 import Browser
 import Browser.Navigation
 import Date
-import Task
+import Time
 import TimeZone
 import Url
 import View
@@ -20,21 +20,19 @@ main =
         }
 
 
-type Model
-    = Loading
-    | Normal
-        { date : Date.Date
+type alias Model
+    =
+        { now : Time.Posix
         }
 
 
 type Msg
     = Nop
-    | Date Date.Date
 
 
-init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
-init _ _ _ =
-    ( Loading, Cmd.batch [ Task.perform Date Date.today ] )
+init : Int -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init now _ _ =
+    ( { now = Time.millisToPosix now }, Cmd.none )
 
 
 update msg model =
@@ -46,30 +44,17 @@ update msg model =
         Nop ->
             nop
 
-        Date date ->
-            case model of
-                Loading ->
-                    ( Normal { date = date }, Cmd.none )
-
-                Normal _ ->
-                    nop
-
 
 view model =
     { title = "Timetrack"
     , body =
-        case model of
-            Loading ->
-                []
-
-            Normal model_ ->
-                View.toHtml (viewBody model_)
+               View.toHtml (viewBody model)
     }
 
 
 viewBody model =
     View.verticalScroll
-        [ View.centered (View.text (Date.toIsoString model.date))
+        [ View.centered (View.text (Date.toIsoString (Date.fromPosix timezone model.now)))
         ]
 
 
