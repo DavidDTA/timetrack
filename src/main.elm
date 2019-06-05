@@ -53,8 +53,7 @@ view model =
 
 viewBody model =
     View.verticalScroll
-        [ View.centered (View.text (Date.toIsoString (Date.fromPosix timezone model.now) ++ " foo"))
-        , View.wrappedText (Date.toIsoString (Date.fromPosix timezone model.now) ++ " foo")
+        [ View.centered (View.text (Date.toIsoString (Date.fromPosix timezone model.now)))
         ]
 
 
