@@ -20,10 +20,9 @@ main =
         }
 
 
-type alias Model
-    =
-        { now : Time.Posix
-        }
+type alias Model =
+    { now : Time.Posix
+    }
 
 
 type Msg
@@ -48,13 +47,14 @@ update msg model =
 view model =
     { title = "Timetrack"
     , body =
-               View.toHtml (viewBody model)
+        View.toHtml (viewBody model)
     }
 
 
 viewBody model =
     View.verticalScroll
-        [ View.centered (View.text (Date.toIsoString (Date.fromPosix timezone model.now)))
+        [ View.centered (View.text (Date.toIsoString (Date.fromPosix timezone model.now) ++ " foo"))
+        , View.wrappedText (Date.toIsoString (Date.fromPosix timezone model.now) ++ " foo")
         ]
 
 
