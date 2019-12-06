@@ -1,63 +1,21 @@
-module View exposing (Text, centered, text, toHtml, verticalList, verticalScroll, wrappedText)
+module View exposing (BothDependentBlock(..), IndependentBlock(..), WidthDependentBlock(..), toHtml)
 
 import Html
 import Html.Attributes
 
 
-type Text
-    = Text String
+type IndependentBlock msg
+    = PreformattedText String
 
 
-type Block width height msg
-    = Block { html : Html.Html msg }
+type WidthDependentBlock msg
+    = WrappedTextWithPerLineOverflow String
+    | CenteredHorizontalWithOverflow (IndependentBlock msg)
+    | VerticalList (List (WidthDependentBlock msg))
 
 
-type FillHeight
-    = FillHeight
-
-
-type FixedHeight
-    = FixedHeight
-
-
-type FillWidth
-    = FillWidth
-
-
-type FixedWidth
-    = FixedWidth
-
-
-centered : Block FixedWidth FixedHeight msg -> Block FillWidth FixedHeight msg
-centered (Block { html }) =
-    Block { html = Html.div ([ Html.Attributes.style "text-align" "center" ] ++ styleHorizontalOverflow) [ html ] }
-
-
-text : String -> Block FixedWidth FixedHeight msg
-text value =
-    Block { html = Html.span [ Html.Attributes.style "white-space" "pre" ] [ Html.text value ] }
-
-
-wrappedText : String -> Block FillWidth FixedHeight msg
-wrappedText value =
-    Block { html = Html.div ([ Html.Attributes.style "white-space" "pre-wrap" ] ++ styleHorizontalOverflow) [ Html.text value ] }
-
-
-verticalScroll : List (Block FillWidth FixedHeight msg) -> Block FillWidth FillHeight msg
-verticalScroll contents =
-    Block
-        { html =
-            Html.div
-                [ Html.Attributes.style "overflow-y" "scroll"
-                , Html.Attributes.style "height" "100%"
-                ]
-                (contents |> List.map (\(Block { html }) -> html))
-        }
-
-
-verticalList : List (Block FillWidth FixedHeight msg) -> Block FillWidth FixedHeight msg
-verticalList contents =
-    Block { html = Html.div [] (contents |> List.map (\(Block { html }) -> html)) }
+type BothDependentBlock msg
+    = VerticalScroll (WidthDependentBlock msg)
 
 
 staticCss =
@@ -76,12 +34,53 @@ html, body {
 """
 
 
-toHtml : Block FillWidth FillHeight msg -> List (Html.Html msg)
-toHtml (Block { html }) =
+toHtml : BothDependentBlock msg -> List (Html.Html msg)
+toHtml block =
     [ Html.node "style" [] [ Html.text staticCss ]
-    , html
+    , toHtmlBothDependent block
     ]
 
 
-styleHorizontalOverflow =
-    [ Html.Attributes.style "text-overflow" "ellipsis", Html.Attributes.style "overflow-x" "hidden" ]
+toHtmlBothDependent : BothDependentBlock msg -> Html.Html msg
+toHtmlBothDependent block =
+    case block of
+        VerticalScroll contents ->
+            Html.div
+                [ Html.Attributes.style "width" "100%"
+                , Html.Attributes.style "height" "100%"
+                , Html.Attributes.style "overflow-y" "scroll"
+                ]
+                (toHtmlWidthDependent contents)
+
+
+toHtmlWidthDependent : WidthDependentBlock msg -> List (Html.Html msg)
+toHtmlWidthDependent block =
+    case block of
+        WrappedTextWithPerLineOverflow text ->
+            [ Html.div
+                [ Html.Attributes.style "white-space" "pre-wrap"
+                , Html.Attributes.style "text-overflow" "ellipsis"
+                , Html.Attributes.style "overflow-x" "hidden"
+                ]
+                [ Html.text text
+                ]
+            ]
+
+        CenteredHorizontalWithOverflow contents ->
+            [ Html.div
+                [ Html.Attributes.style "text-align" "center"
+                , Html.Attributes.style "text-overflow" "ellipsis"
+                , Html.Attributes.style "overflow-x" "hidden"
+                ]
+                (toHtmlIndependent contents)
+            ]
+
+        VerticalList contents ->
+            List.concatMap toHtmlWidthDependent contents
+
+
+toHtmlIndependent : IndependentBlock msg -> List (Html.Html msg)
+toHtmlIndependent block =
+    case block of
+        PreformattedText text ->
+            [ Html.span [ Html.Attributes.style "white-space" "pre" ] [ Html.text text ] ]

@@ -52,9 +52,11 @@ view model =
 
 
 viewBody model =
-    View.verticalScroll
-        [ View.centered (View.text (Date.toIsoString (Date.fromPosix timezone model.now)))
-        ]
+    View.VerticalScroll
+        (View.VerticalList
+            [ View.CenteredHorizontalWithOverflow (View.PreformattedText (Date.toIsoString (Date.fromPosix timezone model.now)))
+            ]
+        )
 
 
 timezone =
