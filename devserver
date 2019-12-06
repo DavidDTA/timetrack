@@ -1,3 +1,3 @@
 #! /bin/bash
 set -e
-elm-live --dir=src/static --port=8001 --open -- src/Main.elm --output=src/static/-/main.js
+elm-live --dir=src/static --port=8001 --open -- src/elm/main.elm --output=src/static/-/main.js
