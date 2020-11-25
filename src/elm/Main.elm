@@ -2,9 +2,13 @@ module Main exposing (main)
 
 import Browser
 import Browser.Navigation
+import Css
+import Css.Global
 import Date
-import Html
-import Html.Attributes
+import Html.Styled
+import Html.Styled.Attributes
+import Html.Styled.Events
+import Json.Decode
 import Time
 import TimeZone
 import Url
@@ -49,29 +53,46 @@ update msg model =
 view model =
     { title = "Timetrack"
     , body =
-        Html.node "style" [] [ Html.text staticCss ] :: viewBody model
+        [ Html.Styled.toUnstyled
+            (Html.Styled.div
+                []
+                [ fontStylesheet "https://fonts.googleapis.com/css?family=Nunito"
+                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons"
+                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Outlined"
+                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Round"
+                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Two+Tone"
+                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Sharp"
+                , globalCss
+                , viewBody model
+                ]
+            )
+        ]
     }
 
 
-staticCss =
-    """
-@import url('https://fonts.googleapis.com/css?family=Nunito');
-@import url('https://fonts.googleapis.com/css?family=Material+Icons');
-@import url('https://fonts.googleapis.com/css?family=Material+Icons+Outlined');
-@import url('https://fonts.googleapis.com/css?family=Material+Icons+Round');
-@import url('https://fonts.googleapis.com/css?family=Material+Icons+Two+Tone');
-@import url('https://fonts.googleapis.com/css?family=Material+Icons+Sharp');
-html, body {
-  width: 100%;
-  height: 100%;
-}
-* {
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  font-family: 'Nunito', sans-serif;
-}
-"""
+fontStylesheet url =
+    Html.Styled.node "link"
+        [ Html.Styled.Attributes.href url
+        , Html.Styled.Attributes.rel "stylesheet"
+        , Html.Styled.Attributes.type_ "text/css"
+        ]
+        []
+
+
+globalCss =
+    Css.Global.global
+        [ Css.Global.each
+            [ Css.Global.html, Css.Global.body ]
+            [ Css.width (Css.pct 100)
+            , Css.height (Css.pct 100)
+            ]
+        , Css.Global.everything
+            [ Css.margin Css.zero
+            , Css.padding Css.zero
+            , Css.overflow Css.hidden
+            , Css.fontFamilies [ Css.qt "Nunito", Css.sansSerif.value ]
+            ]
+        ]
 
 
 viewBody model =
@@ -95,31 +116,37 @@ viewBody model =
             , "Chores progress"
             ]
     in
-    [ Html.div
-        [ Html.Attributes.style "width" "100%"
-        , Html.Attributes.style "height" "100%"
-        , Html.Attributes.style "overflow-x" "scroll"
-        ]
-        [ Html.table
-            [ Html.Attributes.style "table-layout" "fixed"
-            , Html.Attributes.style "width" "0"
+    Html.Styled.div
+        [ Html.Styled.Attributes.css
+            [ Css.width (Css.pct 100)
+            , Css.height (Css.pct 100)
+            , Css.overflowX Css.scroll
             ]
-            (Html.tr
+        ]
+        [ Html.Styled.table
+            [ Html.Styled.Attributes.css
+                [ Css.tableLayout Css.fixed
+                , Css.width Css.zero
+                ]
+            ]
+            (Html.Styled.tr
                 []
-                (Html.td
-                    [ Html.Attributes.style "width" "8em"
+                (Html.Styled.td
+                    [ Html.Styled.Attributes.css [ Css.width (Css.em 8) ]
                     ]
                     []
                     :: List.map
                         (\day ->
-                            Html.td
-                                [ Html.Attributes.style "width" "2em"
-                                , Html.Attributes.style "font-variant" "small-caps"
-                                , Html.Attributes.style "white-space" "pre"
-                                , Html.Attributes.style "padding" "8px"
-                                , Html.Attributes.style "text-align" "center"
+                            Html.Styled.td
+                                [ Html.Styled.Attributes.css
+                                    [ Css.width (Css.em 2)
+                                    , Css.fontVariant Css.smallCaps
+                                    , Css.whiteSpace Css.pre
+                                    , Css.padding (Css.px 8)
+                                    , Css.textAlign Css.center
+                                    ]
                                 ]
-                                [ Html.text
+                                [ Html.Styled.text
                                     (labelForWeekday (Date.weekday day)
                                         ++ "\n"
                                         ++ String.fromInt (Date.day day)
@@ -130,21 +157,22 @@ viewBody model =
                 )
                 :: List.map
                     (\row ->
-                        Html.tr []
-                            [ Html.td
-                                [ Html.Attributes.style "padding" "8px"
-                                , Html.Attributes.style "white-space" "nowrap"
-                                , Html.Attributes.style "text-overflow" "ellipsis"
+                        Html.Styled.tr []
+                            [ Html.Styled.td
+                                [ Html.Styled.Attributes.css
+                                    [ Css.padding (Css.px 8)
+                                    , Css.whiteSpace Css.noWrap
+                                    , Css.textOverflow Css.ellipsis
+                                    ]
                                 ]
-                                [ Html.i [ Html.Attributes.class "material-icons" ] [ Html.text "star" ]
-                                , Html.text row
+                                [ Html.Styled.i [ Html.Styled.Attributes.class "material-icons" ] [ Html.Styled.text "star" ]
+                                , Html.Styled.text row
                                 ]
                             ]
                     )
                     rows
             )
         ]
-    ]
 
 
 labelForWeekday weekday =
