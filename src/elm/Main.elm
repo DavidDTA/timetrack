@@ -2,13 +2,13 @@ module Main exposing (main)
 
 import Browser
 import Browser.Navigation
+import Color
 import Css
 import Css.Global
 import Date
 import Html.Styled
 import Html.Styled.Attributes
-import Html.Styled.Events
-import Json.Decode
+import Material.Icons.Toggle
 import Time
 import TimeZone
 import Url
@@ -56,27 +56,18 @@ view model =
         [ Html.Styled.toUnstyled
             (Html.Styled.div
                 []
-                [ fontStylesheet "https://fonts.googleapis.com/css?family=Nunito"
-                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons"
-                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Outlined"
-                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Round"
-                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Two+Tone"
-                , fontStylesheet "https://fonts.googleapis.com/css?family=Material+Icons+Sharp"
+                [ Html.Styled.node "link"
+                    [ Html.Styled.Attributes.href "https://fonts.googleapis.com/css?family=Nunito"
+                    , Html.Styled.Attributes.rel "stylesheet"
+                    , Html.Styled.Attributes.type_ "text/css"
+                    ]
+                    []
                 , globalCss
                 , viewBody model
                 ]
             )
         ]
     }
-
-
-fontStylesheet url =
-    Html.Styled.node "link"
-        [ Html.Styled.Attributes.href url
-        , Html.Styled.Attributes.rel "stylesheet"
-        , Html.Styled.Attributes.type_ "text/css"
-        ]
-        []
 
 
 globalCss =
@@ -165,7 +156,12 @@ viewBody model =
                                     , Css.textOverflow Css.ellipsis
                                     ]
                                 ]
-                                [ Html.Styled.i [ Html.Styled.Attributes.class "material-icons" ] [ Html.Styled.text "star" ]
+                                [ Html.Styled.span
+                                    [ Html.Styled.Attributes.css
+                                        [ Css.verticalAlign Css.bottom
+                                        ]
+                                    ]
+                                    [ Html.Styled.fromUnstyled (Material.Icons.Toggle.star Color.black 24) ]
                                 , Html.Styled.text row
                                 ]
                             ]
