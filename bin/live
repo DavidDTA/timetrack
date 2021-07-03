@@ -1,0 +1,9 @@
+#! /bin/bash
+
+set -e
+
+workspace=build/bin/live
+rm -rf "${workspace}"
+mkdir -p "${workspace}"
+cp -r src/static/* "${workspace}"
+npx elm-live src/elm/Main.elm --open --dir="${workspace}" -- --output="${workspace}/-/src.js"
