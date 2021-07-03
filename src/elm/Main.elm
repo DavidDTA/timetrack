@@ -96,15 +96,7 @@ viewBody model =
                 |> List.map (\x -> Date.add Date.Days -x today)
 
         rows =
-            [ "Work catchup AM"
-            , "Work catchup PM"
-            , "Chores catchup"
-            , "Russian"
-            , "Handstand"
-            , "Stretch"
-            , "Read"
-            , "Project"
-            , "Chores progress"
+            [ "Row 1",
             ]
     in
     Html.Styled.div
