@@ -6,6 +6,10 @@ clean:
 live:
 	bin/live
 
+.PHONY: format
+format:
+	bin/format
+
 .PHONY: publish
 publish:
 	bin/publish
