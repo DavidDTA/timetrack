@@ -96,7 +96,7 @@ viewBody model =
                 |> List.map (\x -> Date.add Date.Days -x today)
 
         rows =
-            [ "Row 1",
+            [ "Row 1"
             ]
     in
     Html.Styled.div
