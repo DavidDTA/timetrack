@@ -139,15 +139,11 @@ view model =
 
 globalCss =
     Css.Global.global
-        [ Css.Global.each
-            [ Css.Global.html, Css.Global.body ]
-            [ Css.width (Css.pct 100)
-            , Css.height (Css.pct 100)
-            ]
-        , Css.Global.everything
+        [
+        Css.Global.everything
             [ Css.margin Css.zero
             , Css.padding Css.zero
-            , Css.overflow Css.hidden
+            , Css.property "overscroll-behavior" "none"
             , Css.fontFamilies [ Css.qt "Nunito", Css.sansSerif.value ]
             ]
         ]
@@ -171,68 +167,7 @@ viewBody { time } =
                     [ "Row 1"
                     ]
             in
-            [ Html.Styled.div
-                [ Html.Styled.Attributes.css
-                    [ Css.width (Css.pct 100)
-                    , Css.height (Css.pct 100)
-                    , Css.overflowX Css.scroll
-                    ]
-                ]
-                [ Html.Styled.table
-                    [ Html.Styled.Attributes.css
-                        [ Css.tableLayout Css.fixed
-                        , Css.width Css.zero
-                        ]
-                    ]
-                    (Html.Styled.tr
-                        []
-                        (Html.Styled.td
-                            [ Html.Styled.Attributes.css [ Css.width (Css.em 8) ]
-                            ]
-                            []
-                            :: List.map
-                                (\day ->
-                                    Html.Styled.td
-                                        [ Html.Styled.Attributes.css
-                                            [ Css.width (Css.em 2)
-                                            , Css.fontVariant Css.smallCaps
-                                            , Css.whiteSpace Css.pre
-                                            , Css.padding (Css.px 8)
-                                            , Css.textAlign Css.center
-                                            ]
-                                        ]
-                                        [ Html.Styled.text
-                                            (labelForWeekday (Date.weekday day)
-                                                ++ "\n"
-                                                ++ String.fromInt (Date.day day)
-                                            )
-                                        ]
-                                )
-                                days
-                        )
-                        :: List.map
-                            (\row ->
-                                Html.Styled.tr []
-                                    [ Html.Styled.td
-                                        [ Html.Styled.Attributes.css
-                                            [ Css.padding (Css.px 8)
-                                            , Css.whiteSpace Css.noWrap
-                                            , Css.textOverflow Css.ellipsis
-                                            ]
-                                        ]
-                                        [ Html.Styled.span
-                                            [ Html.Styled.Attributes.css
-                                                [ Css.verticalAlign Css.bottom
-                                                ]
-                                            ]
-                                            [ Html.Styled.fromUnstyled (Material.Icons.Toggle.star Color.black 24) ]
-                                        , Html.Styled.text row
-                                        ]
-                                    ]
-                            )
-                            rows
-                    )
-                ]
+            [
             ]
 
 
