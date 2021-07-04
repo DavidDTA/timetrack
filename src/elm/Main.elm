@@ -56,7 +56,7 @@ type Msg
     | UpdateZone Time.Zone
 
 
-init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init : String -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init _ _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }, errors = [] }
     , TimeZone.getZone
@@ -139,8 +139,7 @@ view model =
 
 globalCss =
     Css.Global.global
-        [
-        Css.Global.everything
+        [ Css.Global.everything
             [ Css.margin Css.zero
             , Css.padding Css.zero
             , Css.property "overscroll-behavior" "none"
@@ -149,7 +148,16 @@ globalCss =
         ]
 
 
-viewBody { time } =
+viewBody model =
+    viewErrors model ++ viewTimers model
+
+
+viewErrors { errors } =
+    errors
+        |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text "Error!" ])
+
+
+viewTimers { time } =
     case time of
         TimeUninitialized _ ->
             []
@@ -167,8 +175,7 @@ viewBody { time } =
                     [ "Row 1"
                     ]
             in
-            [
-            ]
+            []
 
 
 labelForWeekday weekday =
