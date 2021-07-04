@@ -10,6 +10,7 @@ import Date
 import Duration
 import Html.Styled
 import Html.Styled.Attributes
+import Html.Styled.Events
 import Material.Icons.Toggle
 import Quantity
 import Result.Extra
@@ -63,6 +64,7 @@ type Msg
     | Nop
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
+    | AddTimer
 
 
 init : String -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -114,6 +116,13 @@ update msg model =
 
                         TimeInitialized initialized ->
                             TimeInitialized { initialized | zone = zone }
+              }
+            , Cmd.none
+            )
+
+        AddTimer ->
+            ( { model
+                | timers = model.timers ++ [ { accumulated = Quantity.zero, started = Nothing } ]
               }
             , Cmd.none
             )
@@ -176,6 +185,7 @@ viewTimers { time, timers } =
 
         TimeInitialized { now, zone } ->
             List.map (viewTimer now) timers
+                ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
 
 
 viewTimer now { accumulated, started } =
@@ -215,6 +225,6 @@ viewDuration duration =
             minutesQuantity |> Quantity.plus (Duration.seconds (toFloat seconds))
 
         hundredths =
-            duration |> Quantity.minus secondsQuantity |> Duration.inMilliseconds |> (/) 10 |> floor
+            duration |> Quantity.minus secondsQuantity |> Duration.inMilliseconds |> (\x -> x / 10) |> floor
     in
     Html.Styled.text (String.fromInt hours ++ ":" ++ String.fromInt minutes ++ ":" ++ String.fromInt seconds ++ "." ++ String.fromInt hundredths)
