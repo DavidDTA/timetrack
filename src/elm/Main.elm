@@ -7,9 +7,11 @@ import Color
 import Css
 import Css.Global
 import Date
+import Duration
 import Html.Styled
 import Html.Styled.Attributes
 import Material.Icons.Toggle
+import Quantity
 import Result.Extra
 import Task
 import Time
@@ -31,6 +33,7 @@ main =
 type alias Model =
     { time : TimeModel
     , errors : List Error
+    , timers : List Timer
     }
 
 
@@ -43,6 +46,12 @@ type TimeModel
         { now : Time.Posix
         , zone : Time.Zone
         }
+
+
+type alias Timer =
+    { accumulated : Duration.Duration
+    , started : Maybe Time.Posix
+    }
 
 
 type Error
@@ -58,7 +67,10 @@ type Msg
 
 init : String -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init _ _ _ =
-    ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }, errors = [] }
+    ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
+      , errors = []
+      , timers = []
+      }
     , TimeZone.getZone
         |> Task.attempt (Result.Extra.unpack (TimeZone >> Error) (Tuple.second >> UpdateZone))
     )
@@ -157,46 +169,52 @@ viewErrors { errors } =
         |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text "Error!" ])
 
 
-viewTimers { time } =
+viewTimers { time, timers } =
     case time of
         TimeUninitialized _ ->
             []
 
         TimeInitialized { now, zone } ->
-            let
-                today =
-                    Date.fromPosix zone now
-
-                days =
-                    List.range 0 5
-                        |> List.map (\x -> Date.add Date.Days -x today)
-
-                rows =
-                    [ "Row 1"
-                    ]
-            in
-            []
+            List.map (viewTimer now) timers
 
 
-labelForWeekday weekday =
-    case weekday of
-        Time.Mon ->
-            "mon"
+viewTimer now { accumulated, started } =
+    Html.Styled.div []
+        [ Html.Styled.text "Timer"
+        , Quantity.plus accumulated
+            (Maybe.map
+                (\posix ->
+                    Duration.from posix now
+                        |> Quantity.max Quantity.zero
+                )
+                started
+                |> Maybe.withDefault Quantity.zero
+            )
+            |> viewDuration
+        ]
 
-        Time.Tue ->
-            "tue"
 
-        Time.Wed ->
-            "wed"
+viewDuration duration =
+    let
+        hours =
+            duration |> Duration.inHours |> floor
 
-        Time.Thu ->
-            "thu"
+        hoursQuantity =
+            Duration.hours (toFloat hours)
 
-        Time.Fri ->
-            "fri"
+        minutes =
+            duration |> Quantity.minus hoursQuantity |> Duration.inMinutes |> floor
 
-        Time.Sat ->
-            "sat"
+        minutesQuantity =
+            hoursQuantity |> Quantity.plus (Duration.minutes (toFloat minutes))
 
-        Time.Sun ->
-            "sun"
+        seconds =
+            duration |> Quantity.minus minutesQuantity |> Duration.inSeconds |> floor
+
+        secondsQuantity =
+            minutesQuantity |> Quantity.plus (Duration.seconds (toFloat seconds))
+
+        hundredths =
+            duration |> Quantity.minus secondsQuantity |> Duration.inMilliseconds |> (/) 10 |> floor
+    in
+    Html.Styled.text (String.fromInt hours ++ ":" ++ String.fromInt minutes ++ ":" ++ String.fromInt seconds ++ "." ++ String.fromInt hundredths)

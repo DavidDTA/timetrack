@@ -15,6 +15,7 @@
             "elm/time": "1.0.0",
             "elm/url": "1.0.0",
             "elm-community/result-extra": "2.4.0",
+            "ianmackenzie/elm-units": "2.9.0",
             "justinmimbs/date": "3.1.2",
             "justinmimbs/timezone-data": "2.1.2",
             "mdgriffith/elm-ui": "1.1.0",
