@@ -11,7 +11,9 @@ import Duration
 import Html.Styled
 import Html.Styled.Attributes
 import Html.Styled.Events
+import List.Extra
 import Material.Icons.Toggle
+import Maybe.Extra
 import Quantity
 import Result.Extra
 import Task
@@ -65,6 +67,7 @@ type Msg
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | AddTimer
+    | ToggleTimer Int
 
 
 init : String -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -127,6 +130,35 @@ update msg model =
             , Cmd.none
             )
 
+        ToggleTimer index ->
+            ( { model
+                | timers =
+                    model.timers
+                        |> List.Extra.updateAt index
+                            (\item ->
+                                case model.time of
+                                    TimeUninitialized _ ->
+                                        item
+
+                                    TimeInitialized { now } ->
+                                        case item.started of
+                                            Just started ->
+                                                { item
+                                                    | accumulated =
+                                                        item.accumulated
+                                                            |> Quantity.plus (Quantity.max Quantity.zero (Duration.from started now))
+                                                    , started = Nothing
+                                                }
+
+                                            Nothing ->
+                                                { item
+                                                    | started = Just now
+                                                }
+                            )
+              }
+            , Cmd.none
+            )
+
 
 maybeInitialize { now, zone } =
     case ( now, zone ) of
@@ -184,11 +216,11 @@ viewTimers { time, timers } =
             []
 
         TimeInitialized { now, zone } ->
-            List.map (viewTimer now) timers
+            List.indexedMap (viewTimer now) timers
                 ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
 
 
-viewTimer now { accumulated, started } =
+viewTimer now index { accumulated, started } =
     Html.Styled.div []
         [ Html.Styled.text "Timer"
         , Quantity.plus accumulated
@@ -201,6 +233,17 @@ viewTimer now { accumulated, started } =
                 |> Maybe.withDefault Quantity.zero
             )
             |> viewDuration
+        , Html.Styled.button
+            [ Html.Styled.Events.onClick (ToggleTimer index)
+            ]
+            [ Html.Styled.text
+                (if Maybe.Extra.isJust started then
+                    "Stop"
+
+                 else
+                    "Start"
+                )
+            ]
         ]
 
 
