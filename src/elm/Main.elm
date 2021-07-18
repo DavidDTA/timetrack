@@ -238,7 +238,24 @@ viewBody model =
 
 viewErrors { errors } =
     errors
-        |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text "Error!" ])
+        |> List.map
+            (\error ->
+                case error of
+                    TimeZoneError tzerror ->
+                        "Timezone error: "
+                            ++ (case tzerror of
+                                    TimeZone.NoZoneName ->
+                                        "No zone name!"
+
+                                    TimeZone.NoDataForZoneName zonename ->
+                                        "No data for zone " ++ zonename ++ "!"
+                               )
+
+                    LoadError loadError ->
+                        "Load error: "
+                            ++ Json.Decode.errorToString loadError
+            )
+        |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
 
 
 viewLoading =
