@@ -2,4 +2,4 @@
 
 set -e
 
-npx elm-format src --yes
+$(npm bin)/elm-format src --yes
