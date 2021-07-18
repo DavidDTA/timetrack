@@ -270,4 +270,18 @@ viewDuration duration =
         hundredths =
             duration |> Quantity.minus secondsQuantity |> Duration.inMilliseconds |> (\x -> x / 10) |> floor
     in
-    Html.Styled.text (String.fromInt hours ++ ":" ++ String.fromInt minutes ++ ":" ++ String.fromInt seconds ++ "." ++ String.fromInt hundredths)
+    Html.Styled.span []
+        [ Html.Styled.text (String.fromInt hours ++ ":" ++ pad minutes ++ ":" ++ pad seconds)
+        , Html.Styled.small [] [ Html.Styled.text ("." ++ pad hundredths) ]
+        ]
+
+
+pad x =
+    if x < 0 || x >= 100 then
+        "??"
+
+    else if x < 10 then
+        "0" ++ String.fromInt x
+
+    else
+        String.fromInt x
