@@ -19,6 +19,7 @@ import Result.Extra
 import Task
 import Time
 import TimeZone
+import Types exposing (Timer)
 import Url
 
 
@@ -49,12 +50,6 @@ type TimeModel
         { now : Time.Posix
         , zone : Time.Zone
         }
-
-
-type alias Timer =
-    { accumulated : Duration.Duration
-    , started : Maybe Time.Posix
-    }
 
 
 type Error
