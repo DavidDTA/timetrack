@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Browser.Events
@@ -11,6 +11,8 @@ import Duration
 import Html.Styled
 import Html.Styled.Attributes
 import Html.Styled.Events
+import Json.Decode
+import Json.Encode
 import List.Extra
 import Material.Icons.Toggle
 import Maybe.Extra
@@ -19,8 +21,14 @@ import Result.Extra
 import Task
 import Time
 import TimeZone
-import Types exposing (Timer)
+import Transport
 import Url
+
+
+port save : String -> Cmd msg
+
+
+port load : (String -> msg) -> Sub msg
 
 
 main =
@@ -37,7 +45,7 @@ main =
 type alias Model =
     { time : TimeModel
     , errors : List Error
-    , timers : List Timer
+    , persisted : Maybe Transport.Global
     }
 
 
@@ -53,11 +61,13 @@ type TimeModel
 
 
 type Error
-    = TimeZone TimeZone.Error
+    = TimeZoneError TimeZone.Error
+    | LoadError Json.Decode.Error
 
 
 type Msg
     = Error Error
+    | Load String
     | Nop
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
@@ -65,19 +75,22 @@ type Msg
     | ToggleTimer Int
 
 
-init : String -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init _ _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , errors = []
-      , timers = []
+      , persisted = Nothing
       }
     , TimeZone.getZone
-        |> Task.attempt (Result.Extra.unpack (TimeZone >> Error) (Tuple.second >> UpdateZone))
+        |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
     )
 
 
 sub _ =
-    Browser.Events.onAnimationFrame UpdateNow
+    Sub.batch
+        [ Browser.Events.onAnimationFrame UpdateNow
+        , load Load
+        ]
 
 
 update msg model =
@@ -88,6 +101,14 @@ update msg model =
     case msg of
         Error error ->
             ( { model | errors = model.errors ++ [ error ] }, Cmd.none )
+
+        Load serialized ->
+            case Json.Decode.decodeString Transport.decodeGlobal serialized of
+                Ok global ->
+                    ( { model | persisted = Just global }, Cmd.none )
+
+                Err error ->
+                    update (Error (LoadError error)) model
 
         Nop ->
             nop
@@ -119,39 +140,54 @@ update msg model =
             )
 
         AddTimer ->
-            ( { model
-                | timers = model.timers ++ [ { accumulated = Quantity.zero, started = Nothing } ]
-              }
-            , Cmd.none
-            )
+            updatePersisted (\persisted -> { timers = persisted.timers ++ [ { accumulated = Quantity.zero, started = Nothing } ] }) model
 
         ToggleTimer index ->
+            updatePersisted
+                (\persisted ->
+                    { persisted
+                        | timers =
+                            persisted.timers
+                                |> List.Extra.updateAt index
+                                    (\item ->
+                                        case model.time of
+                                            TimeUninitialized _ ->
+                                                item
+
+                                            TimeInitialized { now } ->
+                                                case item.started of
+                                                    Just started ->
+                                                        { item
+                                                            | accumulated =
+                                                                item.accumulated
+                                                                    |> Quantity.plus (Quantity.max Quantity.zero (Duration.from started now))
+                                                            , started = Nothing
+                                                        }
+
+                                                    Nothing ->
+                                                        { item
+                                                            | started = Just now
+                                                        }
+                                    )
+                    }
+                )
+                model
+
+
+updatePersisted f ({ persisted } as model) =
+    case persisted of
+        Nothing ->
+            ( model, Cmd.none )
+
+        Just global ->
+            let
+                updatedGlobal =
+                    f global
+            in
             ( { model
-                | timers =
-                    model.timers
-                        |> List.Extra.updateAt index
-                            (\item ->
-                                case model.time of
-                                    TimeUninitialized _ ->
-                                        item
-
-                                    TimeInitialized { now } ->
-                                        case item.started of
-                                            Just started ->
-                                                { item
-                                                    | accumulated =
-                                                        item.accumulated
-                                                            |> Quantity.plus (Quantity.max Quantity.zero (Duration.from started now))
-                                                    , started = Nothing
-                                                }
-
-                                            Nothing ->
-                                                { item
-                                                    | started = Just now
-                                                }
-                            )
+                | persisted = Just updatedGlobal
               }
-            , Cmd.none
+            , save (Json.Encode.encode 0 (Transport.encodeGlobal updatedGlobal))
             )
 
 
@@ -205,14 +241,23 @@ viewErrors { errors } =
         |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text "Error!" ])
 
 
-viewTimers { time, timers } =
+viewLoading =
+    []
+
+
+viewTimers { time, persisted } =
     case time of
         TimeUninitialized _ ->
-            []
+            viewLoading
 
         TimeInitialized { now, zone } ->
-            List.indexedMap (viewTimer now) timers
-                ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
+            case persisted of
+                Nothing ->
+                    viewLoading
+
+                Just global ->
+                    List.indexedMap (viewTimer now) global.timers
+                        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
 
 
 viewTimer now index { accumulated, started } =

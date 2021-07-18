@@ -2,7 +2,14 @@
   <body>
     <script src="/-/src.js"></script>
     <script>
-Elm.Main.init({ flags: localStorage.data || "{}" });
+(function() {
+  var elm = Elm.Main.init();
+  elm.ports.load.send(localStorage.data || '{}');
+  elm.ports.save.subscribe(function(data) {
+    localStorage.data = data;
+    elm.ports.load.send(data);
+  });
+})();
     </script>
   </body>
 </html>
