@@ -1,6 +1,5 @@
-/*.iml
-/.idea/
 /elm-stuff/
-/src/static/-/
 /build/
 /node_modules/
+/.firebase/
+/.firebaserc
