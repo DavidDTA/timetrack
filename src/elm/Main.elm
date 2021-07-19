@@ -186,8 +186,8 @@ update msg model =
                     { persisted
                         | timers =
                             persisted.timers
-                                |> List.Extra.updateAt index
-                                    (\item ->
+                                |> List.indexedMap
+                                    (\mapIndex item ->
                                         case model.time of
                                             TimeUninitialized _ ->
                                                 item
@@ -203,9 +203,13 @@ update msg model =
                                                         }
 
                                                     Nothing ->
-                                                        { item
-                                                            | started = Just now
-                                                        }
+                                                        if index == mapIndex then
+                                                            { item
+                                                                | started = Just now
+                                                            }
+
+                                                        else
+                                                            item
                                     )
                     }
                 )
