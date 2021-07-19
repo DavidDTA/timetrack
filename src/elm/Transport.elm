@@ -14,6 +14,7 @@ type alias Global =
 
 type alias Timer =
     { accumulated : Duration.Duration
+    , name : Maybe String
     , started : Maybe Time.Posix
     }
 
@@ -40,10 +41,15 @@ decodeTimer =
             (Json.Decode.float
                 |> Json.Decode.map Duration.seconds
             )
+        |> Json.Decode.Pipeline.optional "name"
+            (Json.Decode.string
+                |> Json.Decode.map Just
+            )
+            Nothing
         |> Json.Decode.Pipeline.required "started"
             (Json.Decode.int
                 |> Json.Decode.map Time.millisToPosix
-                |> Json.Decode.maybe
+                |> Json.Decode.nullable
             )
 
 
@@ -54,6 +60,11 @@ encodeTimer timer =
           , timer.accumulated
                 |> Duration.inSeconds
                 |> Json.Encode.float
+          )
+        , ( "name"
+          , timer.name
+                |> Maybe.map Json.Encode.string
+                |> Maybe.withDefault Json.Encode.null
           )
         , ( "started"
           , timer.started

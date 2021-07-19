@@ -72,6 +72,7 @@ type Msg
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | AddTimer
+    | RenameTimer { index : Int, name : String }
     | ToggleTimer Int
 
 
@@ -140,7 +141,44 @@ update msg model =
             )
 
         AddTimer ->
-            updatePersisted (\persisted -> { timers = persisted.timers ++ [ { accumulated = Quantity.zero, started = Nothing } ] }) model
+            updatePersisted
+                (\persisted ->
+                    { timers =
+                        persisted.timers
+                            ++ [ { accumulated = Quantity.zero
+                                 , name = Nothing
+                                 , started = Nothing
+                                 }
+                               ]
+                    }
+                )
+                model
+
+        RenameTimer { index, name } ->
+            updatePersisted
+                (\persisted ->
+                    { persisted
+                        | timers =
+                            persisted.timers
+                                |> List.Extra.updateAt index
+                                    (\item ->
+                                        let
+                                            trimmed =
+                                                String.trim name
+                                        in
+                                        { item
+                                            | name =
+                                                case trimmed of
+                                                    "" ->
+                                                        Nothing
+
+                                                    _ ->
+                                                        Just trimmed
+                                        }
+                                    )
+                    }
+                )
+                model
 
         ToggleTimer index ->
             updatePersisted
@@ -277,9 +315,14 @@ viewTimers { time, persisted } =
                         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
 
 
-viewTimer now index { accumulated, started } =
+viewTimer now index { accumulated, name, started } =
     Html.Styled.div []
-        [ Html.Styled.text "Timer"
+        [ Html.Styled.input
+            [ Html.Styled.Attributes.placeholder "Unnamed Timer"
+            , Html.Styled.Attributes.value (Maybe.withDefault "" name)
+            , Html.Styled.Events.onInput (\updatedName -> RenameTimer { index = index, name = updatedName })
+            ]
+            []
         , Quantity.plus accumulated
             (Maybe.map
                 (\posix ->
