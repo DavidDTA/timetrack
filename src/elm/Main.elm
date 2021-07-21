@@ -72,8 +72,8 @@ type Msg
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | AddTimer
-    | RenameTimer { index : Int, name : String }
-    | ToggleTimer Int
+    | RenameTimer { id : Transport.TimerId, name : String }
+    | ToggleTimer Transport.TimerId
 
 
 init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -141,79 +141,18 @@ update msg model =
             )
 
         AddTimer ->
-            updatePersisted
-                (\persisted ->
-                    { timers =
-                        persisted.timers
-                            ++ [ { accumulated = Quantity.zero
-                                 , name = Nothing
-                                 , started = Nothing
-                                 }
-                               ]
-                    }
-                )
-                model
+            updatePersisted Transport.addTimer model
 
-        RenameTimer { index, name } ->
-            updatePersisted
-                (\persisted ->
-                    { persisted
-                        | timers =
-                            persisted.timers
-                                |> List.Extra.updateAt index
-                                    (\item ->
-                                        let
-                                            trimmed =
-                                                String.trim name
-                                        in
-                                        { item
-                                            | name =
-                                                case trimmed of
-                                                    "" ->
-                                                        Nothing
+        RenameTimer { id, name } ->
+            updatePersisted (Transport.renameTimer id name) model
 
-                                                    _ ->
-                                                        Just trimmed
-                                        }
-                                    )
-                    }
-                )
-                model
+        ToggleTimer id ->
+            case model.time of
+                TimeUninitialized _ ->
+                    nop
 
-        ToggleTimer index ->
-            updatePersisted
-                (\persisted ->
-                    { persisted
-                        | timers =
-                            persisted.timers
-                                |> List.indexedMap
-                                    (\mapIndex item ->
-                                        case model.time of
-                                            TimeUninitialized _ ->
-                                                item
-
-                                            TimeInitialized { now } ->
-                                                case item.started of
-                                                    Just started ->
-                                                        { item
-                                                            | accumulated =
-                                                                item.accumulated
-                                                                    |> Quantity.plus (Quantity.max Quantity.zero (Duration.from started now))
-                                                            , started = Nothing
-                                                        }
-
-                                                    Nothing ->
-                                                        if index == mapIndex then
-                                                            { item
-                                                                | started = Just now
-                                                            }
-
-                                                        else
-                                                            item
-                                    )
-                    }
-                )
-                model
+                TimeInitialized { now } ->
+                    updatePersisted (Transport.toggleTimer id now) model
 
 
 updatePersisted f ({ persisted } as model) =
@@ -315,16 +254,16 @@ viewTimers { time, persisted } =
                     viewLoading
 
                 Just global ->
-                    List.indexedMap (viewTimer now) global.timers
+                    List.map (viewTimer now) (Transport.listTimers global)
                         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
 
 
-viewTimer now index { accumulated, name, started } =
+viewTimer now ( id, { accumulated, name, started } ) =
     Html.Styled.div []
         [ Html.Styled.input
             [ Html.Styled.Attributes.placeholder "Unnamed Timer"
             , Html.Styled.Attributes.value (Maybe.withDefault "" name)
-            , Html.Styled.Events.onInput (\updatedName -> RenameTimer { index = index, name = updatedName })
+            , Html.Styled.Events.onInput (\updatedName -> RenameTimer { id = id, name = updatedName })
             ]
             []
         , Quantity.plus accumulated
@@ -338,7 +277,7 @@ viewTimer now index { accumulated, name, started } =
             )
             |> viewDuration
         , Html.Styled.button
-            [ Html.Styled.Events.onClick (ToggleTimer index)
+            [ Html.Styled.Events.onClick (ToggleTimer id)
             ]
             [ Html.Styled.text
                 (if Maybe.Extra.isJust started then

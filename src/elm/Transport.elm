@@ -1,15 +1,18 @@
-module Transport exposing (..)
+module Transport exposing (Global, Timer, TimerId, addTimer, decodeGlobal, encodeGlobal, listTimers, renameTimer, toggleTimer)
 
 import Duration
 import Json.Decode
 import Json.Decode.Pipeline
 import Json.Encode
+import List.Extra
+import Quantity
 import Time
 
 
-type alias Global =
-    { timers : List Timer
-    }
+type Global
+    = Global
+        { timers : List Timer
+        }
 
 
 type alias Timer =
@@ -19,16 +22,93 @@ type alias Timer =
     }
 
 
+type TimerId
+    = TimerId Int
+
+
+addTimer : Global -> Global
+addTimer (Global global) =
+    Global
+        { global
+            | timers =
+                global.timers
+                    ++ [ { accumulated = Quantity.zero
+                         , name = Nothing
+                         , started = Nothing
+                         }
+                       ]
+        }
+
+
+listTimers : Global -> List ( TimerId, Timer )
+listTimers (Global { timers }) =
+    List.indexedMap (\index timer -> ( TimerId index, timer )) timers
+
+
+renameTimer : TimerId -> String -> Global -> Global
+renameTimer (TimerId id) name (Global global) =
+    Global
+        { global
+            | timers =
+                global.timers
+                    |> List.Extra.updateAt id
+                        (\item ->
+                            let
+                                trimmed =
+                                    String.trim name
+                            in
+                            { item
+                                | name =
+                                    case trimmed of
+                                        "" ->
+                                            Nothing
+
+                                        _ ->
+                                            Just trimmed
+                            }
+                        )
+        }
+
+
+toggleTimer : TimerId -> Time.Posix -> Global -> Global
+toggleTimer (TimerId id) now (Global global) =
+    Global
+        { global
+            | timers =
+                global.timers
+                    |> List.indexedMap
+                        (\mapIndex item ->
+                            case item.started of
+                                Just started ->
+                                    { item
+                                        | accumulated =
+                                            item.accumulated
+                                                |> Quantity.plus (Quantity.max Quantity.zero (Duration.from started now))
+                                        , started = Nothing
+                                    }
+
+                                Nothing ->
+                                    if id == mapIndex then
+                                        { item
+                                            | started = Just now
+                                        }
+
+                                    else
+                                        item
+                        )
+        }
+
+
 decodeGlobal : Json.Decode.Decoder Global
 decodeGlobal =
-    Json.Decode.succeed Global
+    Json.Decode.succeed (\timers -> Global { timers = timers })
         |> Json.Decode.Pipeline.optional "timers"
             (Json.Decode.list decodeTimer)
             []
 
 
 encodeGlobal : Global -> Json.Encode.Value
-encodeGlobal global =
+encodeGlobal (Global global) =
     Json.Encode.object
         [ ( "timers", Json.Encode.list encodeTimer global.timers )
         ]
