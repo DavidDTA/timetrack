@@ -45,7 +45,7 @@ main =
 type alias Model =
     { time : TimeModel
     , errors : List Error
-    , persisted : Maybe Transport.Global
+    , persisted : Maybe Transport.TimerSet
     }
 
 
@@ -104,9 +104,9 @@ update msg model =
             ( { model | errors = model.errors ++ [ error ] }, Cmd.none )
 
         Load serialized ->
-            case Json.Decode.decodeString Transport.decodeGlobal serialized of
-                Ok global ->
-                    ( { model | persisted = Just global }, Cmd.none )
+            case Json.Decode.decodeString Transport.decodeTimerSet serialized of
+                Ok timerSet ->
+                    ( { model | persisted = Just timerSet }, Cmd.none )
 
                 Err error ->
                     update (Error (LoadError error)) model
@@ -160,15 +160,15 @@ updatePersisted f ({ persisted } as model) =
         Nothing ->
             ( model, Cmd.none )
 
-        Just global ->
+        Just timerSet ->
             let
-                updatedGlobal =
-                    f global
+                updatedTimerSet =
+                    f timerSet
             in
             ( { model
-                | persisted = Just updatedGlobal
+                | persisted = Just updatedTimerSet
               }
-            , save (Json.Encode.encode 0 (Transport.encodeGlobal updatedGlobal))
+            , save (Json.Encode.encode 0 (Transport.encodeTimerSet updatedTimerSet))
             )
 
 
@@ -253,8 +253,8 @@ viewTimers { time, persisted } =
                 Nothing ->
                     viewLoading
 
-                Just global ->
-                    List.map (viewTimer now) (Transport.listTimers global)
+                Just timerSet ->
+                    List.map (viewTimer now) (Transport.listTimers timerSet)
                         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
 
 

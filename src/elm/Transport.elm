@@ -1,4 +1,4 @@
-module Transport exposing (Global, Timer, TimerId, addTimer, decodeGlobal, encodeGlobal, listTimers, renameTimer, toggleTimer)
+module Transport exposing (Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, listTimers, renameTimer, toggleTimer)
 
 import Duration
 import Json.Decode
@@ -9,8 +9,8 @@ import Quantity
 import Time
 
 
-type Global
-    = Global
+type TimerSet
+    = TimerSet
         { timers : List Timer
         }
 
@@ -26,12 +26,12 @@ type TimerId
     = TimerId Int
 
 
-addTimer : Global -> Global
-addTimer (Global global) =
-    Global
-        { global
+addTimer : TimerSet -> TimerSet
+addTimer (TimerSet timerSet) =
+    TimerSet
+        { timerSet
             | timers =
-                global.timers
+                timerSet.timers
                     ++ [ { accumulated = Quantity.zero
                          , name = Nothing
                          , started = Nothing
@@ -40,17 +40,17 @@ addTimer (Global global) =
         }
 
 
-listTimers : Global -> List ( TimerId, Timer )
-listTimers (Global { timers }) =
+listTimers : TimerSet -> List ( TimerId, Timer )
+listTimers (TimerSet { timers }) =
     List.indexedMap (\index timer -> ( TimerId index, timer )) timers
 
 
-renameTimer : TimerId -> String -> Global -> Global
-renameTimer (TimerId id) name (Global global) =
-    Global
-        { global
+renameTimer : TimerId -> String -> TimerSet -> TimerSet
+renameTimer (TimerId id) name (TimerSet timerSet) =
+    TimerSet
+        { timerSet
             | timers =
-                global.timers
+                timerSet.timers
                     |> List.Extra.updateAt id
                         (\item ->
                             let
@@ -70,12 +70,12 @@ renameTimer (TimerId id) name (Global global) =
         }
 
 
-toggleTimer : TimerId -> Time.Posix -> Global -> Global
-toggleTimer (TimerId id) now (Global global) =
-    Global
-        { global
+toggleTimer : TimerId -> Time.Posix -> TimerSet -> TimerSet
+toggleTimer (TimerId id) now (TimerSet timerSet) =
+    TimerSet
+        { timerSet
             | timers =
-                global.timers
+                timerSet.timers
                     |> List.indexedMap
                         (\mapIndex item ->
                             case item.started of
@@ -99,18 +99,18 @@ toggleTimer (TimerId id) now (Global global) =
         }
 
 
-decodeGlobal : Json.Decode.Decoder Global
-decodeGlobal =
-    Json.Decode.succeed (\timers -> Global { timers = timers })
+decodeTimerSet : Json.Decode.Decoder TimerSet
+decodeTimerSet =
+    Json.Decode.succeed (\timers -> TimerSet { timers = timers })
         |> Json.Decode.Pipeline.optional "timers"
             (Json.Decode.list decodeTimer)
             []
 
 
-encodeGlobal : Global -> Json.Encode.Value
-encodeGlobal (Global global) =
+encodeTimerSet : TimerSet -> Json.Encode.Value
+encodeTimerSet (TimerSet timerSet) =
     Json.Encode.object
-        [ ( "timers", Json.Encode.list encodeTimer global.timers )
+        [ ( "timers", Json.Encode.list encodeTimer timerSet.timers )
         ]
 
 
