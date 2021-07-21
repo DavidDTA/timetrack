@@ -1,4 +1,4 @@
-module Transport exposing (Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, listTimers, renameTimer, toggleTimer)
+module TimerSet exposing (Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, listTimers, renameTimer, toggleTimer)
 
 import Duration
 import Json.Decode

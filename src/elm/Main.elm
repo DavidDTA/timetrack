@@ -21,7 +21,7 @@ import Result.Extra
 import Task
 import Time
 import TimeZone
-import Transport
+import TimerSet
 import Url
 
 
@@ -45,7 +45,7 @@ main =
 type alias Model =
     { time : TimeModel
     , errors : List Error
-    , persisted : Maybe Transport.TimerSet
+    , persisted : Maybe TimerSet.TimerSet
     }
 
 
@@ -72,8 +72,8 @@ type Msg
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | AddTimer
-    | RenameTimer { id : Transport.TimerId, name : String }
-    | ToggleTimer Transport.TimerId
+    | RenameTimer { id : TimerSet.TimerId, name : String }
+    | ToggleTimer TimerSet.TimerId
 
 
 init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -104,7 +104,7 @@ update msg model =
             ( { model | errors = model.errors ++ [ error ] }, Cmd.none )
 
         Load serialized ->
-            case Json.Decode.decodeString Transport.decodeTimerSet serialized of
+            case Json.Decode.decodeString TimerSet.decodeTimerSet serialized of
                 Ok timerSet ->
                     ( { model | persisted = Just timerSet }, Cmd.none )
 
@@ -141,10 +141,10 @@ update msg model =
             )
 
         AddTimer ->
-            updatePersisted Transport.addTimer model
+            updatePersisted TimerSet.addTimer model
 
         RenameTimer { id, name } ->
-            updatePersisted (Transport.renameTimer id name) model
+            updatePersisted (TimerSet.renameTimer id name) model
 
         ToggleTimer id ->
             case model.time of
@@ -152,7 +152,7 @@ update msg model =
                     nop
 
                 TimeInitialized { now } ->
-                    updatePersisted (Transport.toggleTimer id now) model
+                    updatePersisted (TimerSet.toggleTimer id now) model
 
 
 updatePersisted f ({ persisted } as model) =
@@ -168,7 +168,7 @@ updatePersisted f ({ persisted } as model) =
             ( { model
                 | persisted = Just updatedTimerSet
               }
-            , save (Json.Encode.encode 0 (Transport.encodeTimerSet updatedTimerSet))
+            , save (Json.Encode.encode 0 (TimerSet.encodeTimerSet updatedTimerSet))
             )
 
 
@@ -254,7 +254,7 @@ viewTimers { time, persisted } =
                     viewLoading
 
                 Just timerSet ->
-                    List.map (viewTimer now) (Transport.listTimers timerSet)
+                    List.map (viewTimer now) (TimerSet.listTimers timerSet)
                         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
 
 
