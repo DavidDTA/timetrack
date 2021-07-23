@@ -72,6 +72,7 @@ type Msg
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | AddTimer
+    | ClearTimers
     | RenameTimer { id : TimerSet.TimerId, name : String }
     | ToggleTimer TimerSet.TimerId
 
@@ -142,6 +143,9 @@ update msg model =
 
         AddTimer ->
             updatePersisted TimerSet.addTimer model
+
+        ClearTimers ->
+            updatePersisted TimerSet.reset model
 
         RenameTimer { id, name } ->
             updatePersisted (TimerSet.renameTimer id name) model
@@ -255,7 +259,11 @@ viewTimers { time, persisted } =
 
                 Just timerSet ->
                     List.map (viewTimer now) (TimerSet.listTimers timerSet)
-                        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
+                        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ]
+                           , Html.Styled.button [ Html.Styled.Events.onClick ClearTimers ]
+                                [ Html.Styled.text "clear"
+                                ]
+                           ]
 
 
 viewTimer now ( id, { accumulated, name, started } ) =

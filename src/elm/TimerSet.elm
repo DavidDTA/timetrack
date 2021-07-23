@@ -1,4 +1,4 @@
-module TimerSet exposing (Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, listTimers, renameTimer, toggleTimer)
+module TimerSet exposing (Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, listTimers, renameTimer, reset, toggleTimer)
 
 import Duration
 import Json.Decode
@@ -68,6 +68,11 @@ renameTimer (TimerId id) name (TimerSet timerSet) =
                             }
                         )
         }
+
+
+reset : TimerSet -> TimerSet
+reset (TimerSet timerSet) =
+    TimerSet { timers = [] }
 
 
 toggleTimer : TimerId -> Time.Posix -> TimerSet -> TimerSet
