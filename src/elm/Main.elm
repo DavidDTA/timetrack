@@ -46,7 +46,13 @@ type alias Model =
     { time : TimeModel
     , errors : List Error
     , persisted : Maybe TimerSet.TimerSet
+    , clearConfirmation : ClearConfirmation
     }
+
+
+type ClearConfirmation
+    = ClearConfirmationHidden
+    | ClearConfirmationShown
 
 
 type TimeModel
@@ -72,7 +78,9 @@ type Msg
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | AddTimer
-    | ClearTimers
+    | ClearTimersInitiate
+    | ClearTimersCancel
+    | ClearTimersConfirm
     | RenameTimer { id : TimerSet.TimerId, name : String }
     | ToggleTimer TimerSet.TimerId
 
@@ -82,6 +90,7 @@ init _ _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , errors = []
       , persisted = Nothing
+      , clearConfirmation = ClearConfirmationHidden
       }
     , TimeZone.getZone
         |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
@@ -144,8 +153,15 @@ update msg model =
         AddTimer ->
             updatePersisted TimerSet.addTimer model
 
-        ClearTimers ->
+        ClearTimersInitiate ->
+            ( { model | clearConfirmation = ClearConfirmationShown }, Cmd.none )
+
+        ClearTimersCancel ->
+            ( { model | clearConfirmation = ClearConfirmationHidden }, Cmd.none )
+
+        ClearTimersConfirm ->
             updatePersisted TimerSet.reset model
+                |> Tuple.mapFirst (\updatedModel -> { updatedModel | clearConfirmation = ClearConfirmationHidden })
 
         RenameTimer { id, name } ->
             updatePersisted (TimerSet.renameTimer id name) model
@@ -247,7 +263,7 @@ viewLoading =
     []
 
 
-viewTimers { time, persisted } =
+viewTimers { time, persisted, clearConfirmation } =
     case time of
         TimeUninitialized _ ->
             viewLoading
@@ -259,11 +275,16 @@ viewTimers { time, persisted } =
 
                 Just timerSet ->
                     List.map (viewTimer now) (TimerSet.listTimers timerSet)
-                        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ]
-                           , Html.Styled.button [ Html.Styled.Events.onClick ClearTimers ]
-                                [ Html.Styled.text "clear"
-                                ]
-                           ]
+                        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
+                        ++ (case clearConfirmation of
+                                ClearConfirmationHidden ->
+                                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersInitiate ] [ Html.Styled.text "clear" ] ]
+
+                                ClearConfirmationShown ->
+                                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersCancel ] [ Html.Styled.text "cancel" ]
+                                    , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text "Are you sure?" ]
+                                    ]
+                           )
 
 
 viewTimer now ( id, { accumulated, name, started } ) =
