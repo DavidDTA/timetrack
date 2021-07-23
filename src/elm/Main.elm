@@ -47,6 +47,7 @@ type alias Model =
     , errors : List Error
     , persisted : Maybe TimerSet.TimerSet
     , clearConfirmation : ClearConfirmation
+    , edit : Maybe Edit
     }
 
 
@@ -66,6 +67,10 @@ type TimeModel
         }
 
 
+type Edit
+    = EditTimerName { timerId : TimerSet.TimerId, name : String }
+
+
 type Error
     = TimeZoneError TimeZone.Error
     | LoadError Json.Decode.Error
@@ -81,7 +86,8 @@ type Msg
     | ClearTimersInitiate
     | ClearTimersCancel
     | ClearTimersConfirm
-    | RenameTimer { id : TimerSet.TimerId, name : String }
+    | RenameTimer { timerId : TimerSet.TimerId, name : String }
+    | CommitEdit
     | ToggleTimer TimerSet.TimerId
 
 
@@ -91,6 +97,7 @@ init _ _ _ =
       , errors = []
       , persisted = Nothing
       , clearConfirmation = ClearConfirmationHidden
+      , edit = Nothing
       }
     , TimeZone.getZone
         |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
@@ -163,8 +170,17 @@ update msg model =
             updatePersisted TimerSet.reset model
                 |> Tuple.mapFirst (\updatedModel -> { updatedModel | clearConfirmation = ClearConfirmationHidden })
 
-        RenameTimer { id, name } ->
-            updatePersisted (TimerSet.renameTimer id name) model
+        RenameTimer edit ->
+            ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
+
+        CommitEdit ->
+            case model.edit of
+                Nothing ->
+                    nop
+
+                Just (EditTimerName { timerId, name }) ->
+                    updatePersisted (TimerSet.renameTimer timerId name) model
+                        |> Tuple.mapFirst (\updatedModel -> { updatedModel | edit = Nothing })
 
         ToggleTimer id ->
             case model.time of
@@ -263,7 +279,7 @@ viewLoading =
     []
 
 
-viewTimers { time, persisted, clearConfirmation } =
+viewTimers { time, persisted, clearConfirmation, edit } =
     case time of
         TimeUninitialized _ ->
             viewLoading
@@ -274,7 +290,7 @@ viewTimers { time, persisted, clearConfirmation } =
                     viewLoading
 
                 Just timerSet ->
-                    List.map (viewTimer now) (TimerSet.listTimers timerSet)
+                    List.map (viewTimer now edit) (TimerSet.listTimers timerSet)
                         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
                         ++ (case clearConfirmation of
                                 ClearConfirmationHidden ->
@@ -285,14 +301,33 @@ viewTimers { time, persisted, clearConfirmation } =
                                     , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text "Are you sure?" ]
                                     ]
                            )
+                        ++ (case edit of
+                                Nothing ->
+                                    []
+
+                                Just _ ->
+                                    [ Html.Styled.text "*" ]
+                           )
 
 
-viewTimer now ( id, { accumulated, name, started } ) =
+viewTimer now edit ( id, { accumulated, name, started } ) =
     Html.Styled.div []
         [ Html.Styled.input
             [ Html.Styled.Attributes.placeholder "Unnamed Timer"
-            , Html.Styled.Attributes.value name
-            , Html.Styled.Events.onInput (\updatedName -> RenameTimer { id = id, name = updatedName })
+            , Html.Styled.Attributes.value
+                (case edit of
+                    Nothing ->
+                        name
+
+                    Just (EditTimerName nameEdit) ->
+                        if nameEdit.timerId == id then
+                            nameEdit.name
+
+                        else
+                            name
+                )
+            , Html.Styled.Events.onInput (\updatedName -> RenameTimer { timerId = id, name = updatedName })
+            , Html.Styled.Events.onBlur CommitEdit
             ]
             []
         , Quantity.plus accumulated
