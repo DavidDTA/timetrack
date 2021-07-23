@@ -17,7 +17,7 @@ type TimerSet
 
 type alias Timer =
     { accumulated : Duration.Duration
-    , name : Maybe String
+    , name : String
     , started : Maybe Time.Posix
     }
 
@@ -33,7 +33,7 @@ addTimer (TimerSet timerSet) =
             | timers =
                 timerSet.timers
                     ++ [ { accumulated = Quantity.zero
-                         , name = Nothing
+                         , name = ""
                          , started = Nothing
                          }
                        ]
@@ -58,13 +58,7 @@ renameTimer (TimerId id) name (TimerSet timerSet) =
                                     String.trim name
                             in
                             { item
-                                | name =
-                                    case trimmed of
-                                        "" ->
-                                            Nothing
-
-                                        _ ->
-                                            Just trimmed
+                                | name = trimmed
                             }
                         )
         }
@@ -126,11 +120,8 @@ decodeTimer =
             (Json.Decode.float
                 |> Json.Decode.map Duration.seconds
             )
-        |> Json.Decode.Pipeline.optional "name"
-            (Json.Decode.string
-                |> Json.Decode.map Just
-            )
-            Nothing
+        |> Json.Decode.Pipeline.required "name"
+            Json.Decode.string
         |> Json.Decode.Pipeline.required "started"
             (Json.Decode.int
                 |> Json.Decode.map Time.millisToPosix
@@ -147,9 +138,7 @@ encodeTimer timer =
                 |> Json.Encode.float
           )
         , ( "name"
-          , timer.name
-                |> Maybe.map Json.Encode.string
-                |> Maybe.withDefault Json.Encode.null
+          , Json.Encode.string timer.name
           )
         , ( "started"
           , timer.started

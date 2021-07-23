@@ -291,7 +291,7 @@ viewTimer now ( id, { accumulated, name, started } ) =
     Html.Styled.div []
         [ Html.Styled.input
             [ Html.Styled.Attributes.placeholder "Unnamed Timer"
-            , Html.Styled.Attributes.value (Maybe.withDefault "" name)
+            , Html.Styled.Attributes.value name
             , Html.Styled.Events.onInput (\updatedName -> RenameTimer { id = id, name = updatedName })
             ]
             []
