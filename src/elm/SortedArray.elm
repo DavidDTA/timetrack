@@ -1,4 +1,4 @@
-module SortedArray exposing (SortedArray)
+module SortedArray exposing (SortedArray, empty, fromList, insert, isEmpty, length, map, remove)
 
 import Array
 import Array.Extra
@@ -45,7 +45,7 @@ length (SortedArray array) =
 insert : comparable -> v -> SortedArray comparable v -> SortedArray comparable v
 insert key value (SortedArray array) =
     SortedArray
-        (case findIndex key array of
+        (case find key array of
             BeforeIndex index ->
                 Array.Extra.insertAt index ( key, value ) array
 
@@ -57,7 +57,7 @@ insert key value (SortedArray array) =
 remove : comparable -> SortedArray comparable v -> SortedArray comparable v
 remove key (SortedArray array) =
     SortedArray
-        (case findIndex key array of
+        (case find key array of
             BeforeIndex _ ->
                 array
 
@@ -66,12 +66,41 @@ remove key (SortedArray array) =
         )
 
 
+slice : comparable -> comparable -> SortedArray comparable v -> SortedArray comparable v
+slice startInclusive endExclusive (SortedArray array) =
+    let
+        startIndex =
+            find startInclusive array
+
+        endIndex =
+            find endExclusive array
+
+        startIndexInt =
+            case startIndex of
+                AtIndex index ->
+                    index
+
+                BeforeIndex index ->
+                    index
+
+        endIndexInt =
+            case endIndex of
+                AtIndex index ->
+                    index
+
+                BeforeIndex index ->
+                    index
+    in
+    SortedArray (Array.slice startIndexInt endIndexInt array)
+
+
 map : (k -> v -> v2) -> SortedArray k v -> SortedArray k v2
 map mapper (SortedArray array) =
     SortedArray (Array.map (\( key, value ) -> ( key, mapper key value )) array)
 
 
-findIndex k array =
+find : comparable -> Array.Array ( comparable, v ) -> FindResult
+find k array =
     findBetween k 0 (Array.length array) array
 
 
