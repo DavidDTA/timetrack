@@ -1,4 +1,4 @@
-module SortedArray exposing (SortedArray, before, empty, foldl, fromList, insert, isEmpty, length, map, remove, slice)
+module SortedArray exposing (SortedArray, at, before, empty, foldl, fromList, insert, isEmpty, length, map, merge, remove, slice, toList)
 
 import Array
 import Array.Extra
@@ -30,6 +30,11 @@ empty =
 fromList : List ( comparable, v ) -> SortedArray comparable v
 fromList list =
     SortedArray (Array.fromList (Dict.toList (Dict.fromList list)))
+
+
+toList : SortedArray comparable v -> List ( comparable, v )
+toList (SortedArray array) =
+    Array.toList array
 
 
 isEmpty : SortedArray k v -> Bool
@@ -66,14 +71,29 @@ remove key (SortedArray array) =
         )
 
 
-slice : comparable -> comparable -> SortedArray comparable v -> SortedArray comparable v
-slice startInclusive endExclusive (SortedArray array) =
+merge : SortedArray comparable v -> SortedArray comparable v -> SortedArray comparable v
+merge (SortedArray newArray) old =
+    Array.foldl (\( k, v ) -> insert k v) old newArray
+
+
+slice : Maybe comparable -> Maybe comparable -> SortedArray comparable v -> SortedArray comparable v
+slice maybeStartInclusive maybeEndExclusive (SortedArray array) =
     let
         startIndex =
-            find startInclusive array
+            case maybeStartInclusive of
+                Nothing ->
+                    BeforeIndex 0
+
+                Just startInclusive ->
+                    find startInclusive array
 
         endIndex =
-            find endExclusive array
+            case maybeEndExclusive of
+                Nothing ->
+                    BeforeIndex (Array.length array)
+
+                Just endExclusive ->
+                    find endExclusive array
 
         startIndexInt =
             case startIndex of
@@ -105,6 +125,19 @@ before k (SortedArray array) =
 
         BeforeIndex index ->
             Array.get (index - 1) array
+
+
+at : comparable -> SortedArray comparable v -> Maybe v
+at k (SortedArray array) =
+    case find k array of
+        AtIndex index foundKey foundValue ->
+            Just foundValue
+
+        BeforeIndex 0 ->
+            Nothing
+
+        BeforeIndex index ->
+            Nothing
 
 
 map : (k -> v -> v2) -> SortedArray k v -> SortedArray k v2

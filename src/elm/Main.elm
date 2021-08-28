@@ -21,6 +21,7 @@ import Result.Extra
 import Task
 import Time
 import TimeZone
+import Timeline
 import TimerSet
 import Url
 
@@ -290,7 +291,7 @@ viewTimers { time, persisted, clearConfirmation, edit } =
                     viewLoading
 
                 Just timerSet ->
-                    List.map (viewTimer now edit) (TimerSet.listTimers timerSet)
+                    List.map (viewTimer now edit (TimerSet.history timerSet)) (TimerSet.listTimers timerSet)
                         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
                         ++ (case clearConfirmation of
                                 ClearConfirmationHidden ->
@@ -310,7 +311,16 @@ viewTimers { time, persisted, clearConfirmation, edit } =
                            )
 
 
-viewTimer now edit ( id, { accumulated, name, started } ) =
+viewTimer now edit history ( id, { name } ) =
+    let
+        running =
+            case Timeline.at now history of
+                Nothing ->
+                    False
+
+                Just atNow ->
+                    atNow == id
+    in
     Html.Styled.div []
         [ Html.Styled.input
             [ Html.Styled.Attributes.placeholder "Unnamed Timer"
@@ -330,21 +340,13 @@ viewTimer now edit ( id, { accumulated, name, started } ) =
             , Html.Styled.Events.onBlur CommitEdit
             ]
             []
-        , Quantity.plus accumulated
-            (Maybe.map
-                (\posix ->
-                    Duration.from posix now
-                        |> Quantity.max Quantity.zero
-                )
-                started
-                |> Maybe.withDefault Quantity.zero
-            )
+        , Timeline.duration (Just id) (Time.millisToPosix 0) now history
             |> viewDuration
         , Html.Styled.button
             [ Html.Styled.Events.onClick (ToggleTimer id)
             ]
             [ Html.Styled.text
-                (if Maybe.Extra.isJust started then
+                (if running then
                     "Stop"
 
                  else
