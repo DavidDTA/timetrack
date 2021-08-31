@@ -114,8 +114,8 @@ at posix (Timeline sortedArray) =
                     Nothing
 
 
-duration : Maybe a -> Time.Posix -> Time.Posix -> Timeline a -> Duration.Duration
-duration key startInclusive endExclusive (Timeline sortedArray) =
+duration : (Maybe a -> Bool) -> Time.Posix -> Time.Posix -> Timeline a -> Duration.Duration
+duration filter startInclusive endExclusive (Timeline sortedArray) =
     let
         startInclusiveMillis =
             Time.posixToMillis startInclusive
@@ -132,7 +132,7 @@ duration key startInclusive endExclusive (Timeline sortedArray) =
                     value
 
         addIfKey testKey durationToAdd =
-            if testKey == key then
+            if filter testKey then
                 Quantity.plus durationToAdd
 
             else

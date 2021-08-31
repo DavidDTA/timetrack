@@ -291,8 +291,17 @@ viewTimers { time, persisted, clearConfirmation, edit } =
                     viewLoading
 
                 Just timerSet ->
-                    List.map (viewTimer now edit (TimerSet.history timerSet)) (TimerSet.listTimers timerSet)
-                        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ] ]
+                    let
+                        history =
+                            TimerSet.history timerSet
+                    in
+                    List.map (viewTimer now edit history) (TimerSet.listTimers timerSet)
+                        ++ [ Html.Styled.div []
+                                [ Html.Styled.text "Total: "
+                                , viewDuration (Timeline.duration Maybe.Extra.isJust (Time.millisToPosix 0) now history)
+                                ]
+                           , Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ]
+                           ]
                         ++ (case clearConfirmation of
                                 ClearConfirmationHidden ->
                                     [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersInitiate ] [ Html.Styled.text "clear" ] ]
@@ -340,7 +349,7 @@ viewTimer now edit history ( id, { name } ) =
             , Html.Styled.Events.onBlur CommitEdit
             ]
             []
-        , Timeline.duration (Just id) (Time.millisToPosix 0) now history
+        , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
             |> viewDuration
         , Html.Styled.button
             [ Html.Styled.Events.onClick (ToggleTimer id)
