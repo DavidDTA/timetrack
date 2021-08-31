@@ -89,7 +89,7 @@ type Msg
     | ClearTimersConfirm
     | TimerEditCommit
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
-    | TimerToggle TimerSet.TimerId
+    | TimerToggleRunning TimerSet.TimerId
 
 
 init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -183,7 +183,7 @@ update msg model =
         TimerEditRename edit ->
             ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
 
-        TimerToggle id ->
+        TimerToggleRunning id ->
             case model.time of
                 TimeUninitialized _ ->
                     nop
@@ -352,7 +352,7 @@ viewTimer now edit history ( id, { name } ) =
         , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
             |> viewDuration
         , Html.Styled.button
-            [ Html.Styled.Events.onClick (TimerToggle id)
+            [ Html.Styled.Events.onClick (TimerToggleRunning id)
             ]
             [ Html.Styled.text
                 (if running then
