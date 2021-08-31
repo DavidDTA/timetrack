@@ -87,9 +87,9 @@ type Msg
     | ClearTimersInitiate
     | ClearTimersCancel
     | ClearTimersConfirm
-    | RenameTimer { timerId : TimerSet.TimerId, name : String }
-    | CommitEdit
-    | ToggleTimer TimerSet.TimerId
+    | TimerCommitEdit
+    | TimerRename { timerId : TimerSet.TimerId, name : String }
+    | TimerToggle TimerSet.TimerId
 
 
 init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
@@ -171,10 +171,7 @@ update msg model =
             updatePersisted TimerSet.reset model
                 |> Tuple.mapFirst (\updatedModel -> { updatedModel | clearConfirmation = ClearConfirmationHidden })
 
-        RenameTimer edit ->
-            ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
-
-        CommitEdit ->
+        TimerCommitEdit ->
             case model.edit of
                 Nothing ->
                     nop
@@ -183,7 +180,10 @@ update msg model =
                     updatePersisted (TimerSet.renameTimer timerId name) model
                         |> Tuple.mapFirst (\updatedModel -> { updatedModel | edit = Nothing })
 
-        ToggleTimer id ->
+        TimerRename edit ->
+            ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
+
+        TimerToggle id ->
             case model.time of
                 TimeUninitialized _ ->
                     nop
@@ -345,14 +345,14 @@ viewTimer now edit history ( id, { name } ) =
                         else
                             name
                 )
-            , Html.Styled.Events.onInput (\updatedName -> RenameTimer { timerId = id, name = updatedName })
-            , Html.Styled.Events.onBlur CommitEdit
+            , Html.Styled.Events.onInput (\updatedName -> TimerRename { timerId = id, name = updatedName })
+            , Html.Styled.Events.onBlur TimerCommitEdit
             ]
             []
         , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
             |> viewDuration
         , Html.Styled.button
-            [ Html.Styled.Events.onClick (ToggleTimer id)
+            [ Html.Styled.Events.onClick (TimerToggle id)
             ]
             [ Html.Styled.text
                 (if running then
