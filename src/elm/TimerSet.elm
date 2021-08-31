@@ -1,4 +1,4 @@
-module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, history, listTimers, reset, toggleTimer, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, get, history, listTimers, reset, toggleTimer, updateTimer)
 
 import Duration
 import Json.Decode
@@ -39,6 +39,11 @@ type alias Timer =
 
 type TimerId
     = TimerId Int
+
+
+get : TimerId -> TimerSet -> Maybe Timer
+get (TimerId id) (TimerSet { timers }) =
+    List.Extra.getAt id timers
 
 
 history : TimerSet -> Timeline.Timeline TimerId

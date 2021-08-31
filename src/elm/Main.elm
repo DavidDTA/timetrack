@@ -328,12 +328,24 @@ viewTimers { time, persisted, clearConfirmation, edit } =
                     let
                         history =
                             TimerSet.history timerSet
+
+                        viewTotalLine text predicate =
+                            Html.Styled.div []
+                                [ Html.Styled.text (text ++ ": ")
+                                , viewDuration (Timeline.duration predicate (Time.millisToPosix 0) now history)
+                                ]
+
+                        actCatPred prop val =
+                            Maybe.andThen (\id -> TimerSet.get id timerSet) >> Maybe.andThen prop >> Maybe.Extra.unwrap False ((==) val)
                     in
                     List.map (viewTimer now edit history) (TimerSet.listTimers timerSet)
-                        ++ [ Html.Styled.div []
-                                [ Html.Styled.text "Total: "
-                                , viewDuration (Timeline.duration Maybe.Extra.isJust (Time.millisToPosix 0) now history)
-                                ]
+                        ++ [ viewTotalLine "A" (actCatPred .activity TimerSet.Active)
+                           , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
+                           , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
+                           , viewTotalLine "O" (actCatPred .category TimerSet.Operational)
+                           , viewTotalLine "H" (actCatPred .category TimerSet.Helpful)
+                           , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
+                           , viewTotalLine "Total" Maybe.Extra.isJust
                            , Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ]
                            ]
                         ++ (case clearConfirmation of
