@@ -1,4 +1,4 @@
-module TimerSet exposing (Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, history, listTimers, renameTimer, reset, toggleTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, history, listTimers, reset, toggleTimer, updateTimer)
 
 import Duration
 import Json.Decode
@@ -18,8 +18,22 @@ type TimerSet
         }
 
 
+type Activity
+    = Active
+    | Reactive
+    | Proactive
+
+
+type Category
+    = Operational
+    | Helpful
+    | Productive
+
+
 type alias Timer =
     { name : String
+    , activity : Maybe Activity
+    , category : Maybe Category
     }
 
 
@@ -39,6 +53,8 @@ addTimer (TimerSet timerSet) =
             | timers =
                 timerSet.timers
                     ++ [ { name = ""
+                         , activity = Nothing
+                         , category = Nothing
                          }
                        ]
         }
@@ -49,22 +65,13 @@ listTimers (TimerSet { timers }) =
     List.indexedMap (\index timer -> ( TimerId index, timer )) timers
 
 
-renameTimer : TimerId -> String -> TimerSet -> TimerSet
-renameTimer (TimerId id) name (TimerSet timerSet) =
+updateTimer : TimerId -> (Timer -> Timer) -> TimerSet -> TimerSet
+updateTimer (TimerId id) update (TimerSet timerSet) =
     TimerSet
         { timerSet
             | timers =
                 timerSet.timers
-                    |> List.Extra.updateAt id
-                        (\item ->
-                            let
-                                trimmed =
-                                    String.trim name
-                            in
-                            { item
-                                | name = trimmed
-                            }
-                        )
+                    |> List.Extra.updateAt id update
         }
 
 
@@ -146,14 +153,77 @@ encodeTimerSet (TimerSet timerSet) =
 decodeTimer : Json.Decode.Decoder Timer
 decodeTimer =
     Json.Decode.succeed Timer
-        |> Json.Decode.Pipeline.required "name"
-            Json.Decode.string
+        |> Json.Decode.Pipeline.required "name" Json.Decode.string
+        |> Json.Decode.Pipeline.optional "activity"
+            (Json.Decode.string
+                |> Json.Decode.map
+                    (\value ->
+                        case value of
+                            "A" ->
+                                Just Active
+
+                            "R" ->
+                                Just Reactive
+
+                            "P" ->
+                                Just Proactive
+
+                            _ ->
+                                Nothing
+                    )
+            )
+            Nothing
+        |> Json.Decode.Pipeline.optional "category"
+            (Json.Decode.string
+                |> Json.Decode.map
+                    (\value ->
+                        case value of
+                            "O" ->
+                                Just Operational
+
+                            "H" ->
+                                Just Helpful
+
+                            "P" ->
+                                Just Productive
+
+                            _ ->
+                                Nothing
+                    )
+            )
+            Nothing
 
 
 encodeTimer : Timer -> Json.Encode.Value
 encodeTimer timer =
     Json.Encode.object
-        [ ( "name"
-          , Json.Encode.string timer.name
+        [ ( "name", Json.Encode.string timer.name )
+        , ( "activity"
+          , case timer.activity of
+                Nothing ->
+                    Json.Encode.null
+
+                Just Active ->
+                    Json.Encode.string "A"
+
+                Just Reactive ->
+                    Json.Encode.string "R"
+
+                Just Proactive ->
+                    Json.Encode.string "P"
+          )
+        , ( "category"
+          , case timer.category of
+                Nothing ->
+                    Json.Encode.null
+
+                Just Operational ->
+                    Json.Encode.string "O"
+
+                Just Helpful ->
+                    Json.Encode.string "H"
+
+                Just Productive ->
+                    Json.Encode.string "P"
           )
         ]

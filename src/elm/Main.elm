@@ -89,6 +89,8 @@ type Msg
     | ClearTimersConfirm
     | TimerEditCommit
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
+    | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
+    | TimerToggleCategory TimerSet.TimerId TimerSet.Category
     | TimerToggleRunning TimerSet.TimerId
 
 
@@ -177,11 +179,43 @@ update msg model =
                     nop
 
                 Just (EditTimerName { timerId, name }) ->
-                    updatePersisted (TimerSet.renameTimer timerId name) model
+                    updatePersisted (TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name })) model
                         |> Tuple.mapFirst (\updatedModel -> { updatedModel | edit = Nothing })
 
         TimerEditRename edit ->
             ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
+
+        TimerToggleActivity timerId activity ->
+            updatePersisted
+                (TimerSet.updateTimer timerId
+                    (\timer ->
+                        { timer
+                            | activity =
+                                if timer.activity == Just activity then
+                                    Nothing
+
+                                else
+                                    Just activity
+                        }
+                    )
+                )
+                model
+
+        TimerToggleCategory timerId category ->
+            updatePersisted
+                (TimerSet.updateTimer timerId
+                    (\timer ->
+                        { timer
+                            | category =
+                                if timer.category == Just category then
+                                    Nothing
+
+                                else
+                                    Just category
+                        }
+                    )
+                )
+                model
 
         TimerToggleRunning id ->
             case model.time of
@@ -320,7 +354,24 @@ viewTimers { time, persisted, clearConfirmation, edit } =
                            )
 
 
-viewTimer now edit history ( id, { name } ) =
+viewActCatToggle factory id currentValue newValue text =
+    Html.Styled.button
+        [ Html.Styled.Events.onClick (factory id newValue)
+        , Html.Styled.Attributes.css
+            [ Css.backgroundColor
+                (if currentValue == Just newValue then
+                    colorHighlight
+
+                 else
+                    colorLowlight
+                )
+            ]
+        ]
+        [ Html.Styled.text text
+        ]
+
+
+viewTimer now edit history ( id, { name, activity, category } ) =
     let
         running =
             case Timeline.at now history of
@@ -349,6 +400,15 @@ viewTimer now edit history ( id, { name } ) =
             , Html.Styled.Events.onBlur TimerEditCommit
             ]
             []
+        , Html.Styled.text " "
+        , viewActCatToggle TimerToggleActivity id activity TimerSet.Active "A"
+        , viewActCatToggle TimerToggleActivity id activity TimerSet.Reactive "R"
+        , viewActCatToggle TimerToggleActivity id activity TimerSet.Proactive "P"
+        , Html.Styled.text " "
+        , viewActCatToggle TimerToggleCategory id category TimerSet.Operational "O"
+        , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful "H"
+        , viewActCatToggle TimerToggleCategory id category TimerSet.Productive "P"
+        , Html.Styled.text " "
         , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
             |> viewDuration
         , Html.Styled.button
@@ -403,3 +463,11 @@ pad x =
 
     else
         String.fromInt x
+
+
+colorHighlight =
+    Css.rgb 200 100 100
+
+
+colorLowlight =
+    Css.rgb 200 200 200
