@@ -87,8 +87,8 @@ type Msg
     | ClearTimersInitiate
     | ClearTimersCancel
     | ClearTimersConfirm
-    | TimerCommitEdit
-    | TimerRename { timerId : TimerSet.TimerId, name : String }
+    | TimerEditCommit
+    | TimerEditRename { timerId : TimerSet.TimerId, name : String }
     | TimerToggle TimerSet.TimerId
 
 
@@ -171,7 +171,7 @@ update msg model =
             updatePersisted TimerSet.reset model
                 |> Tuple.mapFirst (\updatedModel -> { updatedModel | clearConfirmation = ClearConfirmationHidden })
 
-        TimerCommitEdit ->
+        TimerEditCommit ->
             case model.edit of
                 Nothing ->
                     nop
@@ -180,7 +180,7 @@ update msg model =
                     updatePersisted (TimerSet.renameTimer timerId name) model
                         |> Tuple.mapFirst (\updatedModel -> { updatedModel | edit = Nothing })
 
-        TimerRename edit ->
+        TimerEditRename edit ->
             ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
 
         TimerToggle id ->
@@ -345,8 +345,8 @@ viewTimer now edit history ( id, { name } ) =
                         else
                             name
                 )
-            , Html.Styled.Events.onInput (\updatedName -> TimerRename { timerId = id, name = updatedName })
-            , Html.Styled.Events.onBlur TimerCommitEdit
+            , Html.Styled.Events.onInput (\updatedName -> TimerEditRename { timerId = id, name = updatedName })
+            , Html.Styled.Events.onBlur TimerEditCommit
             ]
             []
         , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
