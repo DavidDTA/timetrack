@@ -6,6 +6,7 @@ import Browser.Navigation
 import Color
 import Css
 import Css.Global
+import Css.Transitions
 import Date
 import Duration
 import Html.Styled
@@ -264,7 +265,7 @@ view model =
                     , Html.Styled.Attributes.type_ "text/css"
                     ]
                     []
-                 , globalCss
+                 , globalCss model
                  ]
                     ++ viewBody model
                 )
@@ -273,13 +274,34 @@ view model =
     }
 
 
-globalCss =
+globalCss { persisted, time } =
     Css.Global.global
         [ Css.Global.everything
             [ Css.margin Css.zero
             , Css.padding Css.zero
             , Css.property "overscroll-behavior" "none"
             , Css.fontFamilies [ Css.qt "Nunito", Css.sansSerif.value ]
+            ]
+        , Css.Global.html
+            [ Css.minHeight (Css.pct 100) -- Without this, background color transitions for the html don't happen properly in the area not covered by the body
+            , Css.backgroundColor
+                (case persisted of
+                    Nothing ->
+                        colors.paused
+
+                    Just timerSet ->
+                        case time of
+                            TimeUninitialized _ ->
+                                colors.paused
+
+                            TimeInitialized { now } ->
+                                if Maybe.Extra.isJust (Timeline.at now (TimerSet.history timerSet)) then
+                                    colors.running
+
+                                else
+                                    colors.paused
+                )
+            , Css.Transitions.transition [ Css.Transitions.backgroundColor (Duration.inMilliseconds durations.transition) ]
             ]
         ]
 
@@ -372,10 +394,10 @@ viewActCatToggle factory id currentValue newValue text =
         , Html.Styled.Attributes.css
             [ Css.backgroundColor
                 (if currentValue == Just newValue then
-                    colorHighlight
+                    colors.toggleOn
 
                  else
-                    colorLowlight
+                    colors.toggleOff
                 )
             ]
         ]
@@ -477,9 +499,23 @@ pad x =
         String.fromInt x
 
 
-colorHighlight =
-    Css.rgb 200 100 100
+rawColors =
+    { imperialRed = Css.rgb 239 35 60
+    , middleBlue = Css.rgb 138 198 208
+    , spanishGreen = Css.rgb 16 150 72
+    , blackCoral = Css.rgb 94 105 115
+    , silver = Css.rgb 201 201 201
+    }
 
 
-colorLowlight =
-    Css.rgb 200 200 200
+colors =
+    { running = rawColors.spanishGreen
+    , paused = rawColors.blackCoral
+    , toggleOff = rawColors.silver
+    , toggleOn = rawColors.middleBlue
+    }
+
+
+durations =
+    { transition = Duration.milliseconds 150
+    }
