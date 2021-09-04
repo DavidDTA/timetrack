@@ -336,6 +336,10 @@ viewLoading =
     []
 
 
+viewPaused =
+    Html.Styled.text "paused"
+
+
 viewTimers { time, persisted, clearConfirmation, edit } =
     case time of
         TimeUninitialized _ ->
@@ -359,8 +363,25 @@ viewTimers { time, persisted, clearConfirmation, edit } =
 
                         actCatPred prop val =
                             Maybe.andThen (\id -> TimerSet.get id timerSet) >> Maybe.andThen prop >> Maybe.Extra.unwrap False ((==) val)
+
+                        currentTimer =
+                            Timeline.at now history
+
+                        timers =
+                            history
+                                |> Timeline.toList
+                                |> List.reverse
+                                |> List.filterMap (Tuple.second >> Maybe.Extra.filter (Just >> (/=) currentTimer))
+                                |> List.Extra.uniqueBy TimerSet.keyTimerId
                     in
-                    List.map (viewTimer now edit history) (TimerSet.listTimers timerSet)
+                    [ case currentTimer of
+                        Nothing ->
+                            viewPaused
+
+                        Just currentTimerId ->
+                            viewTimer now edit timerSet currentTimerId
+                    ]
+                        ++ List.map (viewTimer now edit timerSet) timers
                         ++ [ viewTotalLine "A" (actCatPred .activity TimerSet.Active)
                            , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
                            , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
@@ -405,8 +426,11 @@ viewActCatToggle factory id currentValue newValue text =
         ]
 
 
-viewTimer now edit history ( id, { name, activity, category } ) =
+viewTimer now edit timerSet id =
     let
+        history =
+            TimerSet.history timerSet
+
         running =
             case Timeline.at now history of
                 Nothing ->
@@ -415,48 +439,53 @@ viewTimer now edit history ( id, { name, activity, category } ) =
                 Just atNow ->
                     atNow == id
     in
-    Html.Styled.div []
-        [ Html.Styled.input
-            [ Html.Styled.Attributes.placeholder "Unnamed Timer"
-            , Html.Styled.Attributes.value
-                (case edit of
-                    Nothing ->
-                        name
+    case TimerSet.get id timerSet of
+        Nothing ->
+            Html.Styled.div [] [ Html.Styled.text "Unknown Timer" ]
 
-                    Just (EditTimerName nameEdit) ->
-                        if nameEdit.timerId == id then
-                            nameEdit.name
+        Just { name, activity, category } ->
+            Html.Styled.div []
+                [ Html.Styled.input
+                    [ Html.Styled.Attributes.placeholder "Unnamed Timer"
+                    , Html.Styled.Attributes.value
+                        (case edit of
+                            Nothing ->
+                                name
 
-                        else
-                            name
-                )
-            , Html.Styled.Events.onInput (\updatedName -> TimerEditRename { timerId = id, name = updatedName })
-            , Html.Styled.Events.onBlur TimerEditCommit
-            ]
-            []
-        , Html.Styled.text " "
-        , viewActCatToggle TimerToggleActivity id activity TimerSet.Active "A"
-        , viewActCatToggle TimerToggleActivity id activity TimerSet.Reactive "R"
-        , viewActCatToggle TimerToggleActivity id activity TimerSet.Proactive "P"
-        , Html.Styled.text " "
-        , viewActCatToggle TimerToggleCategory id category TimerSet.Operational "O"
-        , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful "H"
-        , viewActCatToggle TimerToggleCategory id category TimerSet.Productive "P"
-        , Html.Styled.text " "
-        , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
-            |> viewDuration
-        , Html.Styled.button
-            [ Html.Styled.Events.onClick (TimerToggleRunning id)
-            ]
-            [ Html.Styled.text
-                (if running then
-                    "Stop"
+                            Just (EditTimerName nameEdit) ->
+                                if nameEdit.timerId == id then
+                                    nameEdit.name
 
-                 else
-                    "Start"
-                )
-            ]
-        ]
+                                else
+                                    name
+                        )
+                    , Html.Styled.Events.onInput (\updatedName -> TimerEditRename { timerId = id, name = updatedName })
+                    , Html.Styled.Events.onBlur TimerEditCommit
+                    ]
+                    []
+                , Html.Styled.text " "
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Active "A"
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Reactive "R"
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Proactive "P"
+                , Html.Styled.text " "
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Operational "O"
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful "H"
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Productive "P"
+                , Html.Styled.text " "
+                , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
+                    |> viewDuration
+                , Html.Styled.button
+                    [ Html.Styled.Events.onClick (TimerToggleRunning id)
+                    ]
+                    [ Html.Styled.text
+                        (if running then
+                            "Stop"
+
+                         else
+                            "Start"
+                        )
+                    ]
+                ]
 
 
 viewDuration duration =

@@ -1,4 +1,4 @@
-module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, get, history, listTimers, reset, toggleTimer, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, get, history, keyTimerId, reset, toggleTimer, updateTimer)
 
 import Duration
 import Json.Decode
@@ -65,11 +65,6 @@ addTimer (TimerSet timerSet) =
         }
 
 
-listTimers : TimerSet -> List ( TimerId, Timer )
-listTimers (TimerSet { timers }) =
-    List.indexedMap (\index timer -> ( TimerId index, timer )) timers
-
-
 updateTimer : TimerId -> (Timer -> Timer) -> TimerSet -> TimerSet
 updateTimer (TimerId id) update (TimerSet timerSet) =
     TimerSet
@@ -104,6 +99,11 @@ toggleTimer timerId now (TimerSet timerSet) =
         { timerSet
             | history = Timeline.set value now Nothing timerSet.history
         }
+
+
+keyTimerId : TimerId -> List Int
+keyTimerId (TimerId id) =
+    [ id ]
 
 
 decodeTimeline : Json.Decode.Decoder (Timeline.Timeline TimerId)
