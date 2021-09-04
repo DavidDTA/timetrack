@@ -51,9 +51,9 @@ history (TimerSet timerSet) =
     timerSet.history
 
 
-addTimer : TimerSet -> TimerSet
+addTimer : TimerSet -> ( TimerSet, TimerId )
 addTimer (TimerSet timerSet) =
-    TimerSet
+    ( TimerSet
         { timerSet
             | timers =
                 timerSet.timers
@@ -63,6 +63,8 @@ addTimer (TimerSet timerSet) =
                          }
                        ]
         }
+    , TimerId (List.length timerSet.timers)
+    )
 
 
 updateTimer : TimerId -> (Timer -> Timer) -> TimerSet -> TimerSet

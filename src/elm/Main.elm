@@ -162,7 +162,20 @@ update msg model =
             )
 
         AddTimer ->
-            updatePersisted TimerSet.addTimer model
+            case model.time of
+                TimeUninitialized _ ->
+                    nop
+
+                TimeInitialized { now } ->
+                    updatePersisted
+                        (\persisted ->
+                            let
+                                ( newTimerSet, newTimerId ) =
+                                    TimerSet.addTimer persisted
+                            in
+                            TimerSet.toggleTimer newTimerId now newTimerSet
+                        )
+                        model
 
         ClearTimersInitiate ->
             ( { model | clearConfirmation = ClearConfirmationShown }, Cmd.none )
@@ -389,7 +402,7 @@ viewTimers { time, persisted, clearConfirmation, edit } =
                            , viewTotalLine "H" (actCatPred .category TimerSet.Helpful)
                            , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
                            , viewTotalLine "Total" Maybe.Extra.isJust
-                           , Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "add" ]
+                           , Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "start new" ]
                            ]
                         ++ (case clearConfirmation of
                                 ClearConfirmationHidden ->
