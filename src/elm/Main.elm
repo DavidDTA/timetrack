@@ -321,12 +321,12 @@ globalCss { persisted, time } =
 
 viewBody model =
     viewErrors model
-        ++ (case model.time of
-                TimeUninitialized _ ->
-                    viewLoading
+        ++ (case ( model.time, model.persisted ) of
+                ( TimeInitialized time, Just persisted ) ->
+                    viewTimers time persisted model
 
-                TimeInitialized time ->
-                    viewTimers time model
+                _ ->
+                    viewLoading
            )
 
 
@@ -360,68 +360,63 @@ viewPaused =
     Html.Styled.text "paused"
 
 
-viewTimers { now, zone } { persisted, clearConfirmation, edit } =
-    case persisted of
+viewTimers { now, zone } timerSet { clearConfirmation, edit } =
+    let
+        history =
+            TimerSet.history timerSet
+
+        viewTotalLine text predicate =
+            Html.Styled.div []
+                [ Html.Styled.text (text ++ ": ")
+                , viewDuration (Timeline.duration predicate (Time.millisToPosix 0) now history)
+                ]
+
+        actCatPred prop val =
+            Maybe.andThen (\id -> TimerSet.get id timerSet) >> Maybe.andThen prop >> Maybe.Extra.unwrap False ((==) val)
+
+        currentTimer =
+            Timeline.at now history
+
+        timers =
+            history
+                |> Timeline.toList
+                |> List.reverse
+                |> List.filterMap (Tuple.second >> Maybe.Extra.filter (Just >> (/=) currentTimer))
+                |> List.Extra.uniqueBy TimerSet.keyTimerId
+    in
+    [ case currentTimer of
         Nothing ->
-            viewLoading
+            viewPaused
 
-        Just timerSet ->
-            let
-                history =
-                    TimerSet.history timerSet
+        Just currentTimerId ->
+            viewTimer now edit timerSet currentTimerId
+    ]
+        ++ List.map (viewTimer now edit timerSet) timers
+        ++ [ viewTotalLine "A" (actCatPred .activity TimerSet.Active)
+           , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
+           , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
+           , viewTotalLine "O" (actCatPred .category TimerSet.Operational)
+           , viewTotalLine "H" (actCatPred .category TimerSet.Helpful)
+           , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
+           , viewTotalLine "Total" Maybe.Extra.isJust
+           , Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "start new" ]
+           ]
+        ++ (case clearConfirmation of
+                ClearConfirmationHidden ->
+                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersInitiate ] [ Html.Styled.text "clear" ] ]
 
-                viewTotalLine text predicate =
-                    Html.Styled.div []
-                        [ Html.Styled.text (text ++ ": ")
-                        , viewDuration (Timeline.duration predicate (Time.millisToPosix 0) now history)
-                        ]
-
-                actCatPred prop val =
-                    Maybe.andThen (\id -> TimerSet.get id timerSet) >> Maybe.andThen prop >> Maybe.Extra.unwrap False ((==) val)
-
-                currentTimer =
-                    Timeline.at now history
-
-                timers =
-                    history
-                        |> Timeline.toList
-                        |> List.reverse
-                        |> List.filterMap (Tuple.second >> Maybe.Extra.filter (Just >> (/=) currentTimer))
-                        |> List.Extra.uniqueBy TimerSet.keyTimerId
-            in
-            [ case currentTimer of
+                ClearConfirmationShown ->
+                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersCancel ] [ Html.Styled.text "cancel" ]
+                    , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text "Are you sure?" ]
+                    ]
+           )
+        ++ (case edit of
                 Nothing ->
-                    viewPaused
+                    []
 
-                Just currentTimerId ->
-                    viewTimer now edit timerSet currentTimerId
-            ]
-                ++ List.map (viewTimer now edit timerSet) timers
-                ++ [ viewTotalLine "A" (actCatPred .activity TimerSet.Active)
-                   , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
-                   , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
-                   , viewTotalLine "O" (actCatPred .category TimerSet.Operational)
-                   , viewTotalLine "H" (actCatPred .category TimerSet.Helpful)
-                   , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
-                   , viewTotalLine "Total" Maybe.Extra.isJust
-                   , Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "start new" ]
-                   ]
-                ++ (case clearConfirmation of
-                        ClearConfirmationHidden ->
-                            [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersInitiate ] [ Html.Styled.text "clear" ] ]
-
-                        ClearConfirmationShown ->
-                            [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersCancel ] [ Html.Styled.text "cancel" ]
-                            , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text "Are you sure?" ]
-                            ]
-                   )
-                ++ (case edit of
-                        Nothing ->
-                            []
-
-                        Just _ ->
-                            [ Html.Styled.text "*" ]
-                   )
+                Just _ ->
+                    [ Html.Styled.text "*" ]
+           )
 
 
 viewActCatToggle factory id currentValue newValue text =
