@@ -47,6 +47,7 @@ main =
 type alias Model =
     { time : TimeModel
     , errors : List Error
+    , historySelectedDate : Maybe Date.Date
     , persisted : Maybe TimerSet.TimerSet
     , clearConfirmation : ClearConfirmation
     , edit : Maybe Edit
@@ -88,6 +89,7 @@ type Msg
     | ClearTimersInitiate
     | ClearTimersCancel
     | ClearTimersConfirm
+    | HistoryIncrementDate { days : Int }
     | TimerEditCommit
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
     | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
@@ -99,6 +101,7 @@ init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init _ _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , errors = []
+      , historySelectedDate = Nothing
       , persisted = Nothing
       , clearConfirmation = ClearConfirmationHidden
       , edit = Nothing
@@ -186,6 +189,32 @@ update msg model =
         ClearTimersConfirm ->
             updatePersisted TimerSet.reset model
                 |> Tuple.mapFirst (\updatedModel -> { updatedModel | clearConfirmation = ClearConfirmationHidden })
+
+        HistoryIncrementDate { days } ->
+            ( case model.time of
+                TimeUninitialized _ ->
+                    model
+
+                TimeInitialized { now, zone } ->
+                    let
+                        today =
+                            Date.fromPosix zone now
+
+                        newDate =
+                            model.historySelectedDate
+                                |> Maybe.withDefault today
+                                |> Date.add Date.Days days
+                    in
+                    { model
+                        | historySelectedDate =
+                            if newDate == today then
+                                Nothing
+
+                            else
+                                Just newDate
+                    }
+            , Cmd.none
+            )
 
         TimerEditCommit ->
             case model.edit of
@@ -323,7 +352,7 @@ viewBody model =
     viewErrors model
         ++ (case ( model.time, model.persisted ) of
                 ( TimeInitialized time, Just persisted ) ->
-                    viewTimers time persisted model
+                    viewTimers time persisted model ++ viewHistory time persisted model
 
                 _ ->
                     viewLoading
@@ -417,6 +446,20 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
                 Just _ ->
                     [ Html.Styled.text "*" ]
            )
+
+
+viewHistory { now, zone } timerSet { historySelectedDate } =
+    [ Html.Styled.h1 []
+        [ historySelectedDate
+            |> Maybe.withDefault (Date.fromPosix zone now)
+            |> Date.toIsoString
+            |> Html.Styled.text
+        ]
+    , Html.Styled.div []
+        [ Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = -1 }) ] [ Html.Styled.text "prev" ]
+        , Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Html.Styled.text "next" ]
+        ]
+    ]
 
 
 viewActCatToggle factory id currentValue newValue text =
