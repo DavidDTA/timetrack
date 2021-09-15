@@ -21,6 +21,7 @@ import Quantity
 import Result.Extra
 import Task
 import Time
+import Time.Extra
 import TimeZone
 import Timeline
 import TimerSet
@@ -397,7 +398,7 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
         viewTotalLine text predicate =
             Html.Styled.div []
                 [ Html.Styled.text (text ++ ": ")
-                , viewDuration (Timeline.duration predicate (Time.millisToPosix 0) now history)
+                , viewDuration (sumDuration predicate (Time.millisToPosix 0) now history)
                 ]
 
         actCatPred prop val =
@@ -448,7 +449,41 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
            )
 
 
+startOfDay zone date =
+    Time.Extra.partsToPosix
+        zone
+        { year = Date.year date
+        , month = Date.month date
+        , day = Date.day date
+        , hour = 0
+        , minute = 0
+        , second = 0
+        , millisecond = 0
+        }
+
+
+viewHistoryItem zone timerSet ( timer, start ) =
+    Html.Styled.div []
+        [ viewTimestamp zone start
+        , Html.Styled.text " "
+        , timer
+            |> Maybe.map (\id -> TimerSet.get id timerSet)
+            |> Maybe.Extra.unwrap "Timer Paused" (Maybe.Extra.unwrap "Unknown" .name)
+            |> Html.Styled.text
+        ]
+
+
 viewHistory { now, zone } timerSet { historySelectedDate } =
+    let
+        date =
+            historySelectedDate
+                |> Maybe.withDefault (Date.fromPosix zone now)
+
+        dailyHistory =
+            TimerSet.history timerSet
+                |> Timeline.fold [] (\value start duration -> (::) ( value, start )) (startOfDay zone date) (startOfDay zone (Date.add Date.Days 1 date))
+                |> List.reverse
+    in
     [ Html.Styled.h1 []
         [ historySelectedDate
             |> Maybe.withDefault (Date.fromPosix zone now)
@@ -460,6 +495,7 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
         , Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Html.Styled.text "next" ]
         ]
     ]
+        ++ List.map (viewHistoryItem zone timerSet) dailyHistory
 
 
 viewActCatToggle factory id currentValue newValue text =
@@ -477,6 +513,19 @@ viewActCatToggle factory id currentValue newValue text =
         ]
         [ Html.Styled.text text
         ]
+
+
+sumDuration : (Maybe a -> Bool) -> Time.Posix -> Time.Posix -> Timeline.Timeline a -> Duration.Duration
+sumDuration filter startInclusive endExclusive =
+    let
+        addIfKey testKey _ durationToAdd =
+            if filter testKey then
+                Quantity.plus durationToAdd
+
+            else
+                identity
+    in
+    Timeline.fold Quantity.zero addIfKey startInclusive endExclusive
 
 
 viewTimer now edit timerSet id =
@@ -525,7 +574,7 @@ viewTimer now edit timerSet id =
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful "H"
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Productive "P"
                 , Html.Styled.text " "
-                , Timeline.duration ((==) (Just id)) (Time.millisToPosix 0) now history
+                , sumDuration ((==) (Just id)) (Time.millisToPosix 0) now history
                     |> viewDuration
                 , Html.Styled.button
                     [ Html.Styled.Events.onClick (TimerToggleRunning id)
@@ -539,6 +588,26 @@ viewTimer now edit timerSet id =
                         )
                     ]
                 ]
+
+
+viewTimestamp zone time =
+    let
+        hours =
+            Time.toHour zone time
+
+        minutes =
+            Time.toMinute zone time
+
+        seconds =
+            Time.toSecond zone time
+
+        hundredths =
+            Time.toMillis zone time // 10
+    in
+    Html.Styled.span []
+        [ Html.Styled.text (pad hours ++ ":" ++ pad minutes ++ ":" ++ pad seconds)
+        , Html.Styled.small [] [ Html.Styled.text ("." ++ pad hundredths) ]
+        ]
 
 
 viewDuration duration =

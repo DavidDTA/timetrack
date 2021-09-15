@@ -1,4 +1,4 @@
-module Timeline exposing (Timeline, at, duration, empty, fromList, set, toList)
+module Timeline exposing (Timeline, at, empty, fold, fromList, set, toList)
 
 import Duration
 import Quantity
@@ -114,8 +114,8 @@ at posix (Timeline sortedArray) =
                     Nothing
 
 
-duration : (Maybe a -> Bool) -> Time.Posix -> Time.Posix -> Timeline a -> Duration.Duration
-duration filter startInclusive endExclusive (Timeline sortedArray) =
+fold : acc -> (Maybe a -> Time.Posix -> Duration.Duration -> acc -> acc) -> Time.Posix -> Time.Posix -> Timeline a -> acc
+fold initAcc func startInclusive endExclusive (Timeline sortedArray) =
     let
         startInclusiveMillis =
             Time.posixToMillis startInclusive
@@ -131,32 +131,25 @@ duration filter startInclusive endExclusive (Timeline sortedArray) =
                 Just ( _, value ) ->
                     value
 
-        addIfKey testKey durationToAdd =
-            if filter testKey then
-                Quantity.plus durationToAdd
-
-            else
-                identity
-
         sliced =
             SortedArray.slice (Just startInclusiveMillis) (Just endExclusiveMillis) sortedArray
 
         foldResult =
             SortedArray.foldl
-                (\k v { quantity, previous } ->
+                (\k v { acc, previous } ->
                     let
                         kPosix =
                             Time.millisToPosix k
                     in
-                    { quantity =
-                        addIfKey previous.value (Duration.from previous.start kPosix) quantity
+                    { acc =
+                        func previous.value previous.start (Duration.from previous.start kPosix) acc
                     , previous =
                         { start = kPosix
                         , value = v
                         }
                     }
                 )
-                { quantity = Quantity.zero
+                { acc = initAcc
                 , previous =
                     { start = startInclusive
                     , value = startingValue
@@ -164,5 +157,8 @@ duration filter startInclusive endExclusive (Timeline sortedArray) =
                 }
                 sliced
     in
-    foldResult.quantity
-        |> addIfKey foldResult.previous.value (Duration.from foldResult.previous.start endExclusive)
+    func
+        foldResult.previous.value
+        foldResult.previous.start
+        (Duration.from foldResult.previous.start endExclusive)
+        foldResult.acc
