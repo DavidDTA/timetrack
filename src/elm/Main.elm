@@ -395,15 +395,6 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
         history =
             TimerSet.history timerSet
 
-        viewTotalLine text predicate =
-            Html.Styled.div []
-                [ Html.Styled.text (text ++ ": ")
-                , viewDuration (sumDuration predicate (Time.millisToPosix 0) now history)
-                ]
-
-        actCatPred prop val =
-            Maybe.andThen (\id -> TimerSet.get id timerSet) >> Maybe.andThen prop >> Maybe.Extra.unwrap False ((==) val)
-
         currentTimer =
             Timeline.at now history
 
@@ -422,14 +413,7 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
             viewTimer now edit timerSet currentTimerId
     ]
         ++ List.map (viewTimer now edit timerSet) timers
-        ++ [ viewTotalLine "A" (actCatPred .activity TimerSet.Active)
-           , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
-           , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
-           , viewTotalLine "O" (actCatPred .category TimerSet.Operational)
-           , viewTotalLine "H" (actCatPred .category TimerSet.Helpful)
-           , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
-           , viewTotalLine "Total" Maybe.Extra.isJust
-           , Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "start new" ]
+        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "start new" ]
            ]
         ++ (case clearConfirmation of
                 ClearConfirmationHidden ->
@@ -479,10 +463,28 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
             historySelectedDate
                 |> Maybe.withDefault (Date.fromPosix zone now)
 
-        dailyHistory =
+        dayStart =
+            startOfDay zone date
+
+        dayEnd =
+            startOfDay zone (Date.add Date.Days 1 date)
+
+        history =
             TimerSet.history timerSet
-                |> Timeline.fold [] (\value start duration -> (::) ( value, start )) (startOfDay zone date) (startOfDay zone (Date.add Date.Days 1 date))
+
+        dailyHistory =
+            history
+                |> Timeline.fold [] (\value start duration -> (::) ( value, start )) dayStart dayEnd
                 |> List.reverse
+
+        viewTotalLine text predicate =
+            Html.Styled.div []
+                [ Html.Styled.text (text ++ ": ")
+                , viewDuration (sumDuration predicate dayStart (timeMin now dayEnd) history)
+                ]
+
+        actCatPred prop val =
+            Maybe.andThen (\id -> TimerSet.get id timerSet) >> Maybe.andThen prop >> Maybe.Extra.unwrap False ((==) val)
     in
     [ Html.Styled.h1 []
         [ historySelectedDate
@@ -496,6 +498,15 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
         ]
     ]
         ++ List.map (viewHistoryItem zone timerSet) dailyHistory
+        ++ [ Html.Styled.h2 [] [ Html.Styled.text "Totals" ]
+           , viewTotalLine "A" (actCatPred .activity TimerSet.Active)
+           , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
+           , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
+           , viewTotalLine "O" (actCatPred .category TimerSet.Operational)
+           , viewTotalLine "H" (actCatPred .category TimerSet.Helpful)
+           , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
+           , viewTotalLine "Total" Maybe.Extra.isJust
+           ]
 
 
 viewActCatToggle factory id currentValue newValue text =
@@ -648,6 +659,14 @@ pad x =
 
     else
         String.fromInt x
+
+
+timeMin a b =
+    if Time.posixToMillis a < Time.posixToMillis b then
+        a
+
+    else
+        b
 
 
 rawColors =
