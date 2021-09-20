@@ -479,8 +479,8 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
 
         viewTotalLine text predicate =
             Html.Styled.div []
-                [ Html.Styled.text (text ++ ": ")
-                , viewDuration (sumDuration predicate dayStart (timeMin now dayEnd) history)
+                [ viewDuration (sumDuration predicate dayStart (timeMin now dayEnd) history)
+                , Html.Styled.text (" " ++ text)
                 ]
 
         actCatPred prop val =
@@ -503,6 +503,7 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
                 dayStart
                 dayEnd
                 history
+                |> List.reverse
     in
     [ Html.Styled.h1 []
         [ historySelectedDate
@@ -515,7 +516,6 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
         , Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Html.Styled.text "next" ]
         ]
     ]
-        ++ List.map (viewHistoryItem zone timerSet) dailyHistory
         ++ [ Html.Styled.h2 [] [ Html.Styled.text "Totals" ] ]
         ++ List.map
             (\timerId ->
@@ -537,6 +537,8 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
            , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
            , viewTotalLine "Total" Maybe.Extra.isJust
            ]
+        ++ [ Html.Styled.h2 [] [ Html.Styled.text "History" ] ]
+        ++ List.map (viewHistoryItem zone timerSet) dailyHistory
 
 
 viewActCatToggle factory id currentValue newValue text =
@@ -615,8 +617,6 @@ viewTimer now edit timerSet id =
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful "H"
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Productive "P"
                 , Html.Styled.text " "
-                , sumDuration ((==) (Just id)) (Time.millisToPosix 0) now history
-                    |> viewDuration
                 , Html.Styled.button
                     [ Html.Styled.Events.onClick (TimerToggleRunning id)
                     ]
