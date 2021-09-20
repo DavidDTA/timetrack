@@ -485,6 +485,24 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
 
         actCatPred prop val =
             Maybe.andThen (\id -> TimerSet.get id timerSet) >> Maybe.andThen prop >> Maybe.Extra.unwrap False ((==) val)
+
+        timers =
+            Timeline.fold []
+                (\maybeValue start duration acc ->
+                    case maybeValue of
+                        Nothing ->
+                            acc
+
+                        Just value ->
+                            if List.member value acc then
+                                acc
+
+                            else
+                                value :: acc
+                )
+                dayStart
+                dayEnd
+                history
     in
     [ Html.Styled.h1 []
         [ historySelectedDate
@@ -498,8 +516,20 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
         ]
     ]
         ++ List.map (viewHistoryItem zone timerSet) dailyHistory
-        ++ [ Html.Styled.h2 [] [ Html.Styled.text "Totals" ]
-           , viewTotalLine "A" (actCatPred .activity TimerSet.Active)
+        ++ [ Html.Styled.h2 [] [ Html.Styled.text "Totals" ] ]
+        ++ List.map
+            (\timerId ->
+                viewTotalLine
+                    (timerSet
+                        |> TimerSet.get timerId
+                        |> Maybe.map .name
+                        |> Maybe.Extra.filter (String.isEmpty >> not)
+                        |> Maybe.withDefault strings.unnamedTimer
+                    )
+                    ((==) (Just timerId))
+            )
+            timers
+        ++ [ viewTotalLine "A" (actCatPred .activity TimerSet.Active)
            , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
            , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
            , viewTotalLine "O" (actCatPred .category TimerSet.Operational)
@@ -559,7 +589,7 @@ viewTimer now edit timerSet id =
         Just { name, activity, category } ->
             Html.Styled.div []
                 [ Html.Styled.input
-                    [ Html.Styled.Attributes.placeholder "Unnamed Timer"
+                    [ Html.Styled.Attributes.placeholder strings.unnamedTimer
                     , Html.Styled.Attributes.value
                         (case edit of
                             Nothing ->
@@ -683,6 +713,11 @@ colors =
     , paused = rawColors.blackCoral
     , toggleOff = rawColors.silver
     , toggleOn = rawColors.middleBlue
+    }
+
+
+strings =
+    { unnamedTimer = "Unnamed Timer"
     }
 
 
