@@ -3,3 +3,4 @@
 set -e
 
 diff <(npm list --json --package-lock-only) <(npm list --json) || npm ci
+$(npm bin)/firebase login
