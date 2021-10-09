@@ -1,0 +1,5 @@
+#! /bin/bash
+
+set -e
+
+diff <(npm list --json --package-lock-only) <(npm list --json) || npm ci
