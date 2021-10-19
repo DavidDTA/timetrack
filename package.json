@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "elm": "^0.19.1-5",
-    "elm-format": "^0.8.5",
-    "elm-live": "^4.0.2",
-    "firebase-tools": "^9.18.0"
-  }
-}

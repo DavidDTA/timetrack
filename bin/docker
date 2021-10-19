@@ -1,0 +1,15 @@
+#!/usr/bin/env -S sh -e
+
+image_id=$(docker build . --quiet)
+
+docker run \
+    --interactive \
+    --tty \
+    --rm \
+    --publish 8000:8000 \
+    --publish 9005:9005 \
+    --mount type=bind,source="$(pwd)",target=/workdir \
+    --mount type=volume,source="${image_id#*:}"-elm-stuff,target=/workdir/elm-stuff \
+    --mount type=volume,source="${image_id#*:}"-elm-home,target=/home/.elm \
+    --mount type=volume,source="${image_id#*:}"-firebase-config,target=/home/.config \
+    $image_id $@

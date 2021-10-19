@@ -1,6 +1,3 @@
-#! /bin/bash
+#! bin/docker sh -e
 
-set -e
-
-bin/ensure-dependencies
-$(npm bin)/elm-format src --yes
+elm-format src/elm --yes

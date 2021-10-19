@@ -1,10 +1,10 @@
-#! /bin/bash
-
-set -e
+#! bin/docker sh -e
 
 bin/ensure-dependencies
-workspace=build/bin/live
-rm -rf "${workspace}"
-mkdir -p "${workspace}"
+
+workspace=/tmp/live
+mkdir "${workspace}"
 cp -r src/static/* "${workspace}"
-$(npm bin)/elm-live --path-to-elm "$(npm bin)/elm" src/elm/Main.elm --open --dir="${workspace}" -- --output="${workspace}/-/src.js" --debug
+parallel --line-buffer ::: \
+    "elm-live src/elm/Main.elm --host=0.0.0.0 --proxy-prefix=/-/api --proxy-host=http://localhost:5000/-/api --open --dir=${workspace} -- --output=${workspace}/-/src.js --debug" \
+    "firebase emulators:start"

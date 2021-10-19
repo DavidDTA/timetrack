@@ -1,8 +1,5 @@
-#! /bin/bash
+#! /bin/sh -e
 
-set -e
-
-bin/ensure-dependencies
 workspace=build/bin/publish
 rm -rf "${workspace}"
 mkdir -p "${workspace}"
