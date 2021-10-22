@@ -1,4 +1,4 @@
-port module Main exposing (main)
+port module Client exposing (main)
 
 import Browser
 import Browser.Events

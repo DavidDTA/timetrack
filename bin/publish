@@ -4,5 +4,5 @@ workspace=build/bin/publish
 rm -rf "${workspace}"
 mkdir -p "${workspace}"
 cp -r src/static/* "${workspace}"
-$(npm bin)/elm make src/elm/Main.elm --output="${workspace}/-/src.js" --optimize
+$(npm bin)/elm make src/elm/Client.elm --output="${workspace}/-/src.js" --optimize
 $(npm bin)/firebase deploy
