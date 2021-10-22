@@ -1,0 +1,5 @@
+/build/
+/elm-stuff/
+/functions/node_modules/
+/node_modules/
+ui-debug.log
