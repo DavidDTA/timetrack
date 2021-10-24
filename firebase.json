@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "build/bin/publish",
+    "public": "/publish",
     "rewrites": [
       {
         "source": "/-/api/**",

@@ -1,8 +1,7 @@
-#! /bin/sh -e
+#! bin/docker sh -e
 
-workspace=build/bin/publish
-rm -rf "${workspace}"
-mkdir -p "${workspace}"
+workspace=/publish
+mkdir "${workspace}"
 cp -r src/static/* "${workspace}"
-$(npm bin)/elm make src/elm/Client.elm --output="${workspace}/-/src.js" --optimize
-$(npm bin)/firebase deploy
+elm make src/elm/Client.elm --output="${workspace}/-/src.js" --optimize
+firebase deploy
