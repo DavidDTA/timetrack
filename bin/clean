@@ -1,6 +1,4 @@
 #! /bin/sh -e
 
-docker system prune --all --volumes
-
 find . -not -type d | xargs git check-ignore | xargs --no-run-if-empty rm
 find . -type d | xargs git check-ignore | tac | xargs --no-run-if-empty rmdir
