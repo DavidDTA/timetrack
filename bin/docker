@@ -2,6 +2,8 @@
 
 image_id=$(docker build . --quiet)
 
+mkdir -p build/volumes/elm-home build/volumes/firebase-config
+
 docker run \
     --interactive \
     --tty \
@@ -9,7 +11,6 @@ docker run \
     --publish 8000:8000 \
     --publish 9005:9005 \
     --mount type=bind,source="$(pwd)",target=/workdir \
-    --mount type=volume,source="${image_id#*:}"-elm-stuff,target=/workdir/elm-stuff \
-    --mount type=volume,source="${image_id#*:}"-elm-home,target=/home/.elm \
-    --mount type=volume,source="${image_id#*:}"-firebase-config,target=/home/.config \
+    --mount type=bind,source="$(pwd)"/build/volumes/elm-home,target=/home/.elm \
+    --mount type=bind,source="$(pwd)"/build/volumes/firebase-config,target=/home/.config \
     $image_id $@
