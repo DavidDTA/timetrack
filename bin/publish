@@ -1,7 +1,10 @@
 #! bin/docker sh -e
 
-workspace=/publish
-mkdir "${workspace}"
+bin/ensure-dependencies
+
+workspace=build/bin/publish
+rm -rf "${workspace}"
+mkdir -p "${workspace}"
 cp -r src/static/* "${workspace}"
 elm make src/elm/Client.elm --output="${workspace}/-/src.js" --optimize
 firebase deploy
