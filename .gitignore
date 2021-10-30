@@ -2,4 +2,5 @@
 /elm-stuff/
 /functions/node_modules/
 /node_modules/
+.firebase
 ui-debug.log
