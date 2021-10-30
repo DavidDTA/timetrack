@@ -1,5 +1,6 @@
 port module Server exposing (main)
 
+import Json.Decode
 import Json.Encode
 import Platform
 
@@ -23,7 +24,6 @@ error _ =
     Cmd.none
 
 
-main : Platform.Program () () Msg
 main =
     Platform.worker
         { init = init
@@ -36,14 +36,14 @@ init flags =
     let
         result =
             Json.Decode.decodeValue
-                (Json.Decode.at [ "auth", "token" ] Json.Decode.String)
+                (Json.Decode.at [ "auth", "token" ] Json.Decode.string)
                 flags
     in
     case result of
         Ok value ->
             ( { authToken = Just value }, Cmd.none )
 
-        Error err ->
+        Err err ->
             ( { authToken = Nothing }, error err )
 
 
