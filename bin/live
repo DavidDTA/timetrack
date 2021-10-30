@@ -7,4 +7,5 @@ mkdir "${workspace}"
 cp -r src/static/* "${workspace}"
 parallel --line-buffer ::: \
     "elm-live src/elm/Client.elm --host=0.0.0.0 --proxy-prefix=/-/api --proxy-host=http://localhost:5000/-/api --open --dir=${workspace} -- --output=${workspace}/-/src.js --debug" \
+    "elm-live src/elm/Server.elm --no-server -- --output=functions/src.js --debug" \
     "firebase emulators:start"

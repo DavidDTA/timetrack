@@ -1,6 +1,8 @@
 /build/
 /elm-stuff/
+/firebase-debug.log
+/functions/.runtimeconfig.json
 /functions/node_modules/
+/functions/src.js
 /node_modules/
-.firebase
-ui-debug.log
+/ui-debug.log
