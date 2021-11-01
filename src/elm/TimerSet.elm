@@ -1,10 +1,6 @@
-module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, decodeTimerSet, encodeTimerSet, get, history, keyTimerId, reset, toggleTimer, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, create, get, history, keyTimerId, listTimerIds, reset, timerIdFromRaw, timerIdToRaw, toggleTimer, updateTimer)
 
 import Duration
-import Json.Decode
-import Json.Decode.Pipeline
-import Json.Encode
-import Json.Encode.Extra
 import List.Extra
 import Quantity
 import Time
@@ -39,6 +35,29 @@ type alias Timer =
 
 type TimerId
     = TimerId Int
+
+
+timerIdFromRaw : Int -> TimerId
+timerIdFromRaw =
+    TimerId
+
+
+timerIdToRaw : TimerId -> Int
+timerIdToRaw (TimerId id) =
+    id
+
+
+create : List Timer -> Timeline.Timeline TimerId -> TimerSet
+create timers history_ =
+    TimerSet
+        { timers = timers
+        , history = history_
+        }
+
+
+listTimerIds : TimerSet -> List TimerId
+listTimerIds (TimerSet { timers }) =
+    List.indexedMap (\index _ -> TimerId index) timers
 
 
 get : TimerId -> TimerSet -> Maybe Timer
@@ -106,131 +125,3 @@ toggleTimer timerId now (TimerSet timerSet) =
 keyTimerId : TimerId -> List Int
 keyTimerId (TimerId id) =
     [ id ]
-
-
-decodeTimeline : Json.Decode.Decoder (Timeline.Timeline TimerId)
-decodeTimeline =
-    Json.Decode.list
-        (Json.Decode.succeed Tuple.pair
-            |> Json.Decode.Pipeline.required "start"
-                (Json.Decode.int
-                    |> Json.Decode.map Time.millisToPosix
-                )
-            |> Json.Decode.Pipeline.required "timer"
-                (Json.Decode.int
-                    |> Json.Decode.map TimerId
-                    |> Json.Decode.nullable
-                )
-        )
-        |> Json.Decode.map Timeline.fromList
-
-
-encodeTimeline : Timeline.Timeline TimerId -> Json.Encode.Value
-encodeTimeline timeline =
-    timeline
-        |> Timeline.toList
-        |> Json.Encode.list
-            (\( posix, value ) ->
-                Json.Encode.object
-                    [ ( "start", Json.Encode.int (Time.posixToMillis posix) )
-                    , ( "timer", Json.Encode.Extra.maybe ((\(TimerId id) -> id) >> Json.Encode.int) value )
-                    ]
-            )
-
-
-decodeTimerSet : Json.Decode.Decoder TimerSet
-decodeTimerSet =
-    Json.Decode.succeed (\timers history_ -> TimerSet { timers = timers, history = history_ })
-        |> Json.Decode.Pipeline.optional "timers"
-            (Json.Decode.list decodeTimer)
-            []
-        |> Json.Decode.Pipeline.optional "history"
-            decodeTimeline
-            Timeline.empty
-
-
-encodeTimerSet : TimerSet -> Json.Encode.Value
-encodeTimerSet (TimerSet timerSet) =
-    Json.Encode.object
-        [ ( "timers", Json.Encode.list encodeTimer timerSet.timers )
-        , ( "history", encodeTimeline timerSet.history )
-        ]
-
-
-decodeTimer : Json.Decode.Decoder Timer
-decodeTimer =
-    Json.Decode.succeed Timer
-        |> Json.Decode.Pipeline.required "name" Json.Decode.string
-        |> Json.Decode.Pipeline.optional "activity"
-            (Json.Decode.string
-                |> Json.Decode.map
-                    (\value ->
-                        case value of
-                            "A" ->
-                                Just Active
-
-                            "R" ->
-                                Just Reactive
-
-                            "P" ->
-                                Just Proactive
-
-                            _ ->
-                                Nothing
-                    )
-            )
-            Nothing
-        |> Json.Decode.Pipeline.optional "category"
-            (Json.Decode.string
-                |> Json.Decode.map
-                    (\value ->
-                        case value of
-                            "O" ->
-                                Just Operational
-
-                            "H" ->
-                                Just Helpful
-
-                            "P" ->
-                                Just Productive
-
-                            _ ->
-                                Nothing
-                    )
-            )
-            Nothing
-
-
-encodeTimer : Timer -> Json.Encode.Value
-encodeTimer timer =
-    Json.Encode.object
-        [ ( "name", Json.Encode.string timer.name )
-        , ( "activity"
-          , case timer.activity of
-                Nothing ->
-                    Json.Encode.null
-
-                Just Active ->
-                    Json.Encode.string "A"
-
-                Just Reactive ->
-                    Json.Encode.string "R"
-
-                Just Proactive ->
-                    Json.Encode.string "P"
-          )
-        , ( "category"
-          , case timer.category of
-                Nothing ->
-                    Json.Encode.null
-
-                Just Operational ->
-                    Json.Encode.string "O"
-
-                Just Helpful ->
-                    Json.Encode.string "H"
-
-                Just Productive ->
-                    Json.Encode.string "P"
-          )
-        ]
