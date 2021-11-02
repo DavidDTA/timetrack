@@ -1,4 +1,4 @@
-#! bin/docker sh -e
+#!/usr/bin/env -S bin/docker -- sh -e
 
 workspace=/publish
 mkdir "${workspace}"

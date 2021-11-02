@@ -1,4 +1,4 @@
-#! bin/docker sh -e
+#!/usr/bin/env -S bin/docker --publish 8000:8000 --publish 9005:9005 -- sh -e
 
 bin/ensure-dependencies
 
