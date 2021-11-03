@@ -5,9 +5,78 @@ import Json.Decode.Extra
 import Json.Decode.Pipeline
 import Json.Encode
 import Json.Encode.Extra
+import Serialize
 import Time
 import Timeline
 import TimerSet
+
+
+timerSet =
+    Serialize.record TimerSet.create
+        |> Serialize.field
+            (\timerSet_ ->
+                TimerSet.listTimerIds timerSet_
+                    |> List.filterMap (\id -> TimerSet.get id timerSet_)
+            )
+            (Serialize.list timer)
+        |> Serialize.field TimerSet.history timeline
+        |> Serialize.finishRecord
+
+
+timeline =
+    Serialize.tuple
+        (Serialize.map Time.millisToPosix Time.posixToMillis Serialize.int)
+        (Serialize.maybe (Serialize.map TimerSet.timerIdFromRaw TimerSet.timerIdToRaw Serialize.int))
+        |> Serialize.list
+        |> Serialize.map Timeline.fromList Timeline.toList
+
+
+timer =
+    Serialize.record TimerSet.Timer
+        |> Serialize.field .name Serialize.string
+        |> Serialize.field
+            .activity
+            (Serialize.maybe
+                (Serialize.customType
+                    (\active reactive proactive value ->
+                        case value of
+                            TimerSet.Active ->
+                                active
+
+                            TimerSet.Reactive ->
+                                reactive
+
+                            TimerSet.Proactive ->
+                                proactive
+                    )
+                    |> Serialize.variant0 TimerSet.Active
+                    |> Serialize.variant0 TimerSet.Reactive
+                    |> Serialize.variant0 TimerSet.Proactive
+                    |> Serialize.finishCustomType
+                )
+            )
+        |> Serialize.field
+            .category
+            (Serialize.maybe
+                (Serialize.customType
+                    (\operational helpful productive value ->
+                        case value of
+                            TimerSet.Operational ->
+                                operational
+
+                            TimerSet.Helpful ->
+                                helpful
+
+                            TimerSet.Productive ->
+                                productive
+                    )
+                    |> Serialize.variant0 TimerSet.Operational
+                    |> Serialize.variant0 TimerSet.Helpful
+                    |> Serialize.variant0 TimerSet.Productive
+                    |> Serialize.finishCustomType
+                )
+            )
+        |> Serialize.finishRecord
 
 
 decodeTimeline : Json.Decode.Decoder (Timeline.Timeline TimerSet.TimerId)
@@ -28,8 +97,8 @@ decodeTimeline =
 
 
 encodeTimeline : Timeline.Timeline TimerSet.TimerId -> Json.Encode.Value
-encodeTimeline timeline =
-    timeline
+encodeTimeline timeline_ =
+    timeline_
         |> Timeline.toList
         |> Json.Encode.list
             (\( posix, value ) ->
@@ -52,15 +121,15 @@ decodeTimerSet =
 
 
 encodeTimerSet : TimerSet.TimerSet -> Json.Encode.Value
-encodeTimerSet timerSet =
+encodeTimerSet timerSet_ =
     Json.Encode.object
         [ ( "timers"
           , Json.Encode.list encodeTimer
-                (TimerSet.listTimerIds timerSet
-                    |> List.filterMap (\id -> TimerSet.get id timerSet)
+                (TimerSet.listTimerIds timerSet_
+                    |> List.filterMap (\id -> TimerSet.get id timerSet_)
                 )
           )
-        , ( "history", encodeTimeline (TimerSet.history timerSet) )
+        , ( "history", encodeTimeline (TimerSet.history timerSet_) )
         ]
 
 
@@ -109,11 +178,11 @@ decodeTimer =
 
 
 encodeTimer : TimerSet.Timer -> Json.Encode.Value
-encodeTimer timer =
+encodeTimer timer_ =
     Json.Encode.object
-        [ ( "name", Json.Encode.string timer.name )
+        [ ( "name", Json.Encode.string timer_.name )
         , ( "activity"
-          , case timer.activity of
+          , case timer_.activity of
                 Nothing ->
                     Json.Encode.null
 
@@ -127,7 +196,7 @@ encodeTimer timer =
                     Json.Encode.string "P"
           )
         , ( "category"
-          , case timer.category of
+          , case timer_.category of
                 Nothing ->
                     Json.Encode.null
 
