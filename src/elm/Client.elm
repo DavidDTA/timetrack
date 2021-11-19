@@ -1,9 +1,9 @@
 port module Client exposing (main)
 
+import Api
 import Browser
 import Browser.Events
 import Browser.Navigation
-import Codec.Api
 import Color
 import Css
 import Css.Global
@@ -130,7 +130,7 @@ update msg model =
             ( { model | errors = model.errors ++ [ error ] }, Cmd.none )
 
         Load serialized ->
-            case Json.Decode.decodeString Codec.Api.decodeTimerSet serialized of
+            case Json.Decode.decodeString Api.decodeTimerSet serialized of
                 Ok timerSet ->
                     ( { model | persisted = Just timerSet }, Cmd.none )
 
@@ -284,7 +284,7 @@ updatePersisted f ({ persisted } as model) =
             ( { model
                 | persisted = Just updatedTimerSet
               }
-            , save (Json.Encode.encode 0 (Codec.Api.encodeTimerSet updatedTimerSet))
+            , save (Json.Encode.encode 0 (Api.encodeTimerSet updatedTimerSet))
             )
 
 
