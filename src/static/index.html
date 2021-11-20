@@ -3,12 +3,7 @@
     <script src="/-/src.js"></script>
     <script>
 (function() {
-  var elm = Elm.Client.init();
-  elm.ports.load.send(localStorage.data || '{}');
-  elm.ports.save.subscribe(function(data) {
-    localStorage.data = data;
-    elm.ports.load.send(data);
-  });
+  Elm.Client.init();
 })();
     </script>
   </body>

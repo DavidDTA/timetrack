@@ -1,4 +1,4 @@
-module Api exposing (decodeTimerSet, encodeTimerSet)
+module Api exposing (Request(..), Response(..))
 
 import Json.Decode
 import Json.Decode.Extra
@@ -9,6 +9,21 @@ import Serialize
 import Time
 import Timeline
 import TimerSet
+
+type Request =
+    Get
+    | Update (List TimelineUpdate)
+
+type Response =
+    Value TimerSet.TimerSet
+
+type Update =
+    TimersAddAndStart Time.Posix
+    | TimersClear
+    | TimersRename TimerSet.TimerId String
+    | TimersSetActivity TimerSet.TimerId TimerSet.Activity
+    | TimersSetCategory TimerSet.TimerId TimerSet.Category
+    | TimersSetActive (Maybe TimerSet.TimerId) Time.Posix
 
 
 timerSet =
