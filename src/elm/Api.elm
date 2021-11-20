@@ -1,5 +1,7 @@
-module Api exposing (decodeTimerSet, encodeTimerSet)
+module Api exposing (Error(..), Request(..), Response(..), Update(..), send)
 
+import Bytes
+import Http
 import Json.Decode
 import Json.Decode.Extra
 import Json.Decode.Pipeline
@@ -11,202 +13,188 @@ import Timeline
 import TimerSet
 
 
-timerSet =
+type Request
+    = Get
+    | Update (List Update)
+
+
+type Response
+    = Value TimerSet.TimerSet
+
+
+type Update
+    = TimersAddAndStart Time.Posix
+    | TimersClear
+    | TimersRename TimerSet.TimerId String
+    | TimersSetActivity TimerSet.TimerId (Maybe TimerSet.Activity)
+    | TimersSetCategory TimerSet.TimerId (Maybe TimerSet.Category)
+    | TimersSetActive (Maybe TimerSet.TimerId) Time.Posix
+
+
+type Error
+    = BadUrl String
+    | Timeout
+    | NetworkError
+    | HttpError Http.Metadata Bytes.Bytes
+    | SerializationError (Serialize.Error Never)
+
+
+send : Request -> (Result Error Response -> msg) -> Cmd msg
+send request tag =
+    Http.request
+        { method = "POST"
+        , headers = []
+        , url = "/-/api/"
+        , body = Http.bytesBody "application/octet-stream" (Serialize.encodeToBytes serializeRequest request)
+        , expect =
+            Http.expectBytesResponse tag
+                (\response ->
+                    case response of
+                        Http.BadUrl_ url ->
+                            Result.Err (BadUrl url)
+
+                        Http.Timeout_ ->
+                            Result.Err Timeout
+
+                        Http.NetworkError_ ->
+                            Result.Err NetworkError
+
+                        Http.BadStatus_ metadata body ->
+                            Result.Err (HttpError metadata body)
+
+                        Http.GoodStatus_ metadata body ->
+                            Serialize.decodeFromBytes serializeResponse body
+                                |> Result.mapError SerializationError
+                )
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
+serializeRequest =
+    Serialize.customType
+        (\getEncoder updateEncoder value ->
+            case value of
+                Get ->
+                    getEncoder
+
+                Update updates ->
+                    updateEncoder updates
+        )
+        |> Serialize.variant0 Get
+        |> Serialize.variant1 Update (Serialize.list serializeUpdate)
+        |> Serialize.finishCustomType
+
+
+serializeResponse =
+    Serialize.customType
+        (\valueEncoder value ->
+            case value of
+                Value timerSet ->
+                    valueEncoder timerSet
+        )
+        |> Serialize.variant1 Value serializeTimerSet
+        |> Serialize.finishCustomType
+
+
+serializeUpdate =
+    Serialize.customType
+        (\timersAddAndStartEncoder timersClearEncoder timersRenameEncoder timersSetActivityEncoder timersSetCategoryEncoder timersSetActiveEncoder value ->
+            case value of
+                TimersAddAndStart posix ->
+                    timersAddAndStartEncoder posix
+
+                TimersClear ->
+                    timersClearEncoder
+
+                TimersRename timerId name ->
+                    timersRenameEncoder timerId name
+
+                TimersSetActivity timerId activity ->
+                    timersSetActivityEncoder timerId activity
+
+                TimersSetCategory timerId category ->
+                    timersSetCategoryEncoder timerId category
+
+                TimersSetActive timerId posix ->
+                    timersSetActiveEncoder timerId posix
+        )
+        |> Serialize.variant1 TimersAddAndStart serializePosix
+        |> Serialize.variant0 TimersClear
+        |> Serialize.variant2 TimersRename serializeTimerId Serialize.string
+        |> Serialize.variant2 TimersSetActivity serializeTimerId (Serialize.maybe serializeActivity)
+        |> Serialize.variant2 TimersSetCategory serializeTimerId (Serialize.maybe serializeCategory)
+        |> Serialize.variant2 TimersSetActive (Serialize.maybe serializeTimerId) serializePosix
+        |> Serialize.finishCustomType
+
+
+serializeTimerSet =
     Serialize.record TimerSet.create
         |> Serialize.field
-            (\timerSet_ ->
-                TimerSet.listTimerIds timerSet_
-                    |> List.filterMap (\id -> TimerSet.get id timerSet_)
+            (\timerSet ->
+                TimerSet.listTimerIds timerSet
+                    |> List.filterMap (\id -> TimerSet.get id timerSet)
             )
-            (Serialize.list timer)
-        |> Serialize.field TimerSet.history timeline
+            (Serialize.list serializeTimer)
+        |> Serialize.field TimerSet.history serializeTimeline
         |> Serialize.finishRecord
 
 
-timeline =
-    Serialize.tuple
-        (Serialize.map Time.millisToPosix Time.posixToMillis Serialize.int)
-        (Serialize.maybe (Serialize.map TimerSet.timerIdFromRaw TimerSet.timerIdToRaw Serialize.int))
+serializeTimeline =
+    Serialize.tuple serializePosix (Serialize.maybe serializeTimerId)
         |> Serialize.list
         |> Serialize.map Timeline.fromList Timeline.toList
 
 
-timer =
+serializeTimer =
     Serialize.record TimerSet.Timer
         |> Serialize.field .name Serialize.string
-        |> Serialize.field
-            .activity
-            (Serialize.maybe
-                (Serialize.customType
-                    (\active reactive proactive value ->
-                        case value of
-                            TimerSet.Active ->
-                                active
-
-                            TimerSet.Reactive ->
-                                reactive
-
-                            TimerSet.Proactive ->
-                                proactive
-                    )
-                    |> Serialize.variant0 TimerSet.Active
-                    |> Serialize.variant0 TimerSet.Reactive
-                    |> Serialize.variant0 TimerSet.Proactive
-                    |> Serialize.finishCustomType
-                )
-            )
-        |> Serialize.field
-            .category
-            (Serialize.maybe
-                (Serialize.customType
-                    (\operational helpful productive value ->
-                        case value of
-                            TimerSet.Operational ->
-                                operational
-
-                            TimerSet.Helpful ->
-                                helpful
-
-                            TimerSet.Productive ->
-                                productive
-                    )
-                    |> Serialize.variant0 TimerSet.Operational
-                    |> Serialize.variant0 TimerSet.Helpful
-                    |> Serialize.variant0 TimerSet.Productive
-                    |> Serialize.finishCustomType
-                )
-            )
+        |> Serialize.field .activity (Serialize.maybe serializeActivity)
+        |> Serialize.field .category (Serialize.maybe serializeCategory)
         |> Serialize.finishRecord
 
 
-decodeTimeline : Json.Decode.Decoder (Timeline.Timeline TimerSet.TimerId)
-decodeTimeline =
-    Json.Decode.list
-        (Json.Decode.succeed Tuple.pair
-            |> Json.Decode.Pipeline.required "start"
-                (Json.Decode.int
-                    |> Json.Decode.map Time.millisToPosix
-                )
-            |> Json.Decode.Pipeline.required "timer"
-                (Json.Decode.int
-                    |> Json.Decode.map TimerSet.timerIdFromRaw
-                    |> Json.Decode.nullable
-                )
+serializePosix =
+    Serialize.map Time.millisToPosix Time.posixToMillis Serialize.int
+
+
+serializeTimerId =
+    Serialize.map TimerSet.timerIdFromRaw TimerSet.timerIdToRaw Serialize.int
+
+
+serializeActivity =
+    Serialize.customType
+        (\active reactive proactive value ->
+            case value of
+                TimerSet.Active ->
+                    active
+
+                TimerSet.Reactive ->
+                    reactive
+
+                TimerSet.Proactive ->
+                    proactive
         )
-        |> Json.Decode.map Timeline.fromList
+        |> Serialize.variant0 TimerSet.Active
+        |> Serialize.variant0 TimerSet.Reactive
+        |> Serialize.variant0 TimerSet.Proactive
+        |> Serialize.finishCustomType
 
 
-encodeTimeline : Timeline.Timeline TimerSet.TimerId -> Json.Encode.Value
-encodeTimeline timeline_ =
-    timeline_
-        |> Timeline.toList
-        |> Json.Encode.list
-            (\( posix, value ) ->
-                Json.Encode.object
-                    [ ( "start", Json.Encode.int (Time.posixToMillis posix) )
-                    , ( "timer", Json.Encode.Extra.maybe (TimerSet.timerIdToRaw >> Json.Encode.int) value )
-                    ]
-            )
+serializeCategory =
+    Serialize.customType
+        (\operational helpful productive value ->
+            case value of
+                TimerSet.Operational ->
+                    operational
 
+                TimerSet.Helpful ->
+                    helpful
 
-decodeTimerSet : Json.Decode.Decoder TimerSet.TimerSet
-decodeTimerSet =
-    Json.Decode.succeed TimerSet.create
-        |> Json.Decode.Pipeline.optional "timers"
-            (Json.Decode.list decodeTimer)
-            []
-        |> Json.Decode.Pipeline.optional "history"
-            decodeTimeline
-            Timeline.empty
-
-
-encodeTimerSet : TimerSet.TimerSet -> Json.Encode.Value
-encodeTimerSet timerSet_ =
-    Json.Encode.object
-        [ ( "timers"
-          , Json.Encode.list encodeTimer
-                (TimerSet.listTimerIds timerSet_
-                    |> List.filterMap (\id -> TimerSet.get id timerSet_)
-                )
-          )
-        , ( "history", encodeTimeline (TimerSet.history timerSet_) )
-        ]
-
-
-decodeTimer : Json.Decode.Decoder TimerSet.Timer
-decodeTimer =
-    Json.Decode.succeed TimerSet.Timer
-        |> Json.Decode.Pipeline.required "name" Json.Decode.string
-        |> Json.Decode.Pipeline.optional "activity"
-            (Json.Decode.string
-                |> Json.Decode.map
-                    (\value ->
-                        case value of
-                            "A" ->
-                                Just TimerSet.Active
-
-                            "R" ->
-                                Just TimerSet.Reactive
-
-                            "P" ->
-                                Just TimerSet.Proactive
-
-                            _ ->
-                                Nothing
-                    )
-            )
-            Nothing
-        |> Json.Decode.Pipeline.optional "category"
-            (Json.Decode.string
-                |> Json.Decode.map
-                    (\value ->
-                        case value of
-                            "O" ->
-                                Just TimerSet.Operational
-
-                            "H" ->
-                                Just TimerSet.Helpful
-
-                            "P" ->
-                                Just TimerSet.Productive
-
-                            _ ->
-                                Nothing
-                    )
-            )
-            Nothing
-
-
-encodeTimer : TimerSet.Timer -> Json.Encode.Value
-encodeTimer timer_ =
-    Json.Encode.object
-        [ ( "name", Json.Encode.string timer_.name )
-        , ( "activity"
-          , case timer_.activity of
-                Nothing ->
-                    Json.Encode.null
-
-                Just TimerSet.Active ->
-                    Json.Encode.string "A"
-
-                Just TimerSet.Reactive ->
-                    Json.Encode.string "R"
-
-                Just TimerSet.Proactive ->
-                    Json.Encode.string "P"
-          )
-        , ( "category"
-          , case timer_.category of
-                Nothing ->
-                    Json.Encode.null
-
-                Just TimerSet.Operational ->
-                    Json.Encode.string "O"
-
-                Just TimerSet.Helpful ->
-                    Json.Encode.string "H"
-
-                Just TimerSet.Productive ->
-                    Json.Encode.string "P"
-          )
-        ]
+                TimerSet.Productive ->
+                    productive
+        )
+        |> Serialize.variant0 TimerSet.Operational
+        |> Serialize.variant0 TimerSet.Helpful
+        |> Serialize.variant0 TimerSet.Productive
+        |> Serialize.finishCustomType

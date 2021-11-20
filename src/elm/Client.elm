@@ -1,4 +1,4 @@
-port module Client exposing (main)
+module Client exposing (main)
 
 import Api
 import Browser
@@ -20,6 +20,7 @@ import Material.Icons.Toggle
 import Maybe.Extra
 import Quantity
 import Result.Extra
+import Serialize
 import Task
 import Time
 import Time.Extra
@@ -27,12 +28,6 @@ import TimeZone
 import Timeline
 import TimerSet
 import Url
-
-
-port save : String -> Cmd msg
-
-
-port load : (String -> msg) -> Sub msg
 
 
 main =
@@ -50,7 +45,8 @@ type alias Model =
     { time : TimeModel
     , errors : List Error
     , historySelectedDate : Maybe Date.Date
-    , persisted : Maybe TimerSet.TimerSet
+    , timerSet : Maybe TimerSet.TimerSet
+    , pending : Maybe { current : List Api.Update, queue : List Api.Update }
     , clearConfirmation : ClearConfirmation
     , edit : Maybe Edit
     }
@@ -78,12 +74,12 @@ type Edit
 
 type Error
     = TimeZoneError TimeZone.Error
-    | LoadError Json.Decode.Error
+    | ApiError Api.Error
 
 
 type Msg
-    = Error Error
-    | Load String
+    = ApiResponse (Result Api.Error Api.Response)
+    | Error Error
     | Nop
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
@@ -104,7 +100,8 @@ init _ _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , errors = []
       , historySelectedDate = Nothing
-      , persisted = Nothing
+      , timerSet = Nothing
+      , pending = Nothing
       , clearConfirmation = ClearConfirmationHidden
       , edit = Nothing
       }
@@ -116,7 +113,6 @@ init _ _ _ =
 sub _ =
     Sub.batch
         [ Browser.Events.onAnimationFrame UpdateNow
-        , load Load
         ]
 
 
@@ -126,16 +122,28 @@ update msg model =
             ( model, Cmd.none )
     in
     case msg of
+        ApiResponse result ->
+            case result of
+                Result.Err err ->
+                    update (Error (ApiError err)) model
+
+                Result.Ok response ->
+                    case response of
+                        Api.Value serverTimerSet ->
+                            let
+                                newQueue =
+                                    case model.pending of
+                                        Nothing ->
+                                            []
+
+                                        Just { queue } ->
+                                            List.reverse queue
+                            in
+                            { model | timerSet = Just serverTimerSet, pending = Nothing }
+                                |> enqueueAll newQueue
+
         Error error ->
             ( { model | errors = model.errors ++ [ error ] }, Cmd.none )
-
-        Load serialized ->
-            case Json.Decode.decodeString Api.decodeTimerSet serialized of
-                Ok timerSet ->
-                    ( { model | persisted = Just timerSet }, Cmd.none )
-
-                Err error ->
-                    update (Error (LoadError error)) model
 
         Nop ->
             nop
@@ -172,15 +180,7 @@ update msg model =
                     nop
 
                 TimeInitialized { now } ->
-                    updatePersisted
-                        (\persisted ->
-                            let
-                                ( newTimerSet, newTimerId ) =
-                                    TimerSet.addTimer persisted
-                            in
-                            TimerSet.toggleTimer newTimerId now newTimerSet
-                        )
-                        model
+                    enqueue (Api.TimersAddAndStart now) model
 
         ClearTimersInitiate ->
             ( { model | clearConfirmation = ClearConfirmationShown }, Cmd.none )
@@ -189,8 +189,8 @@ update msg model =
             ( { model | clearConfirmation = ClearConfirmationHidden }, Cmd.none )
 
         ClearTimersConfirm ->
-            updatePersisted TimerSet.reset model
-                |> Tuple.mapFirst (\updatedModel -> { updatedModel | clearConfirmation = ClearConfirmationHidden })
+            { model | clearConfirmation = ClearConfirmationHidden }
+                |> enqueue Api.TimersClear
 
         HistoryIncrementDate { days } ->
             ( case model.time of
@@ -224,68 +224,142 @@ update msg model =
                     nop
 
                 Just (EditTimerName { timerId, name }) ->
-                    updatePersisted (TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name })) model
-                        |> Tuple.mapFirst (\updatedModel -> { updatedModel | edit = Nothing })
+                    { model | edit = Nothing }
+                        |> enqueue (Api.TimersRename timerId name)
 
         TimerEditRename edit ->
             ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
 
         TimerToggleActivity timerId activity ->
-            updatePersisted
-                (TimerSet.updateTimer timerId
-                    (\timer ->
-                        { timer
-                            | activity =
-                                if timer.activity == Just activity then
-                                    Nothing
+            case model.timerSet of
+                Just timerSet ->
+                    let
+                        currentActivity =
+                            TimerSet.get timerId timerSet
+                                |> Maybe.andThen .activity
 
-                                else
-                                    Just activity
-                        }
-                    )
-                )
-                model
+                        newActivity =
+                            if Just activity == currentActivity then
+                                Nothing
 
-        TimerToggleCategory timerId category ->
-            updatePersisted
-                (TimerSet.updateTimer timerId
-                    (\timer ->
-                        { timer
-                            | category =
-                                if timer.category == Just category then
-                                    Nothing
+                            else
+                                Just activity
+                    in
+                    enqueue (Api.TimersSetActivity timerId newActivity) model
 
-                                else
-                                    Just category
-                        }
-                    )
-                )
-                model
-
-        TimerToggleRunning id ->
-            case model.time of
-                TimeUninitialized _ ->
+                Nothing ->
                     nop
 
-                TimeInitialized { now } ->
-                    updatePersisted (TimerSet.toggleTimer id now) model
+        TimerToggleCategory timerId category ->
+            case model.timerSet of
+                Just timerSet ->
+                    let
+                        currentCategory =
+                            TimerSet.get timerId timerSet
+                                |> Maybe.andThen .category
+
+                        newCategory =
+                            if Just category == currentCategory then
+                                Nothing
+
+                            else
+                                Just category
+                    in
+                    enqueue (Api.TimersSetCategory timerId newCategory) model
+
+                Nothing ->
+                    nop
+
+        TimerToggleRunning id ->
+            case ( model.time, model.timerSet ) of
+                ( TimeInitialized { now }, Just timerSet ) ->
+                    let
+                        currentId =
+                            Timeline.at now (TimerSet.history timerSet)
+
+                        newId =
+                            if Just id == currentId then
+                                Nothing
+
+                            else
+                                Just id
+                    in
+                    enqueue (Api.TimersSetActive newId now) model
+
+                ( _, _ ) ->
+                    nop
 
 
-updatePersisted f ({ persisted } as model) =
-    case persisted of
+enqueueAll updates model =
+    case model.timerSet of
         Nothing ->
             ( model, Cmd.none )
 
         Just timerSet ->
             let
-                updatedTimerSet =
-                    f timerSet
+                ( newPending, cmd ) =
+                    case ( model.pending, updates ) of
+                        ( Nothing, [] ) ->
+                            ( Just { current = updates, queue = [] }, Cmd.none )
+
+                        ( Nothing, _ ) ->
+                            ( Just { current = updates, queue = [] }, Api.send (Api.Update updates) ApiResponse )
+
+                        ( Just pending, _ ) ->
+                            ( Just { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
             in
-            ( { model
-                | persisted = Just updatedTimerSet
-              }
-            , save (Json.Encode.encode 0 (Api.encodeTimerSet updatedTimerSet))
-            )
+            ( { model | timerSet = Just (List.foldl applyUpdate timerSet updates), pending = newPending }, cmd )
+
+
+enqueue apiUpdate =
+    enqueueAll [ apiUpdate ]
+
+
+applyUpdate apiUpdate timerSet =
+    case apiUpdate of
+        Api.TimersAddAndStart timestamp ->
+            let
+                ( newTimerSet, newTimerId ) =
+                    TimerSet.addTimer timerSet
+            in
+            TimerSet.startTimer (Just newTimerId) timestamp newTimerSet
+
+        Api.TimersClear ->
+            TimerSet.reset timerSet
+
+        Api.TimersRename timerId name ->
+            TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name }) timerSet
+
+        Api.TimersSetActivity timerId activity ->
+            TimerSet.updateTimer timerId
+                (\timer ->
+                    { timer
+                        | activity =
+                            if timer.activity == activity then
+                                Nothing
+
+                            else
+                                activity
+                    }
+                )
+                timerSet
+
+        Api.TimersSetCategory timerId category ->
+            TimerSet.updateTimer timerId
+                (\timer ->
+                    { timer
+                        | category =
+                            if timer.category == category then
+                                Nothing
+
+                            else
+                                category
+                    }
+                )
+                timerSet
+
+        Api.TimersSetActive timerId timestamp ->
+            TimerSet.startTimer timerId timestamp timerSet
 
 
 maybeInitialize { now, zone } =
@@ -318,7 +392,7 @@ view model =
     }
 
 
-globalCss { persisted, time } =
+globalCss { timerSet, time } =
     Css.Global.global
         [ Css.Global.everything
             [ Css.margin Css.zero
@@ -329,17 +403,17 @@ globalCss { persisted, time } =
         , Css.Global.html
             [ Css.minHeight (Css.pct 100) -- Without this, background color transitions for the html don't happen properly in the area not covered by the body
             , Css.backgroundColor
-                (case persisted of
+                (case timerSet of
                     Nothing ->
                         colors.paused
 
-                    Just timerSet ->
+                    Just timerSet_ ->
                         case time of
                             TimeUninitialized _ ->
                                 colors.paused
 
                             TimeInitialized { now } ->
-                                if Maybe.Extra.isJust (Timeline.at now (TimerSet.history timerSet)) then
+                                if Maybe.Extra.isJust (Timeline.at now (TimerSet.history timerSet_)) then
                                     colors.running
 
                                 else
@@ -352,9 +426,9 @@ globalCss { persisted, time } =
 
 viewBody model =
     viewErrors model
-        ++ (case ( model.time, model.persisted ) of
-                ( TimeInitialized time, Just persisted ) ->
-                    viewTimers time persisted model ++ viewHistory time persisted model
+        ++ (case ( model.time, model.timerSet ) of
+                ( TimeInitialized time, Just timerSet ) ->
+                    viewTimers time timerSet model ++ viewHistory time timerSet model
 
                 _ ->
                     viewLoading
@@ -366,9 +440,9 @@ viewErrors { errors } =
         |> List.map
             (\error ->
                 case error of
-                    TimeZoneError tzerror ->
+                    TimeZoneError tzError ->
                         "Timezone error: "
-                            ++ (case tzerror of
+                            ++ (case tzError of
                                     TimeZone.NoZoneName ->
                                         "No zone name!"
 
@@ -376,9 +450,32 @@ viewErrors { errors } =
                                         "No data for zone " ++ zonename ++ "!"
                                )
 
-                    LoadError loadError ->
-                        "Load error: "
-                            ++ Json.Decode.errorToString loadError
+                    ApiError apiError ->
+                        case apiError of
+                            Api.BadUrl url ->
+                                "Bad url: " ++ url
+
+                            Api.Timeout ->
+                                "Timeout"
+
+                            Api.NetworkError ->
+                                "Network error"
+
+                            Api.HttpError _ _ ->
+                                "HTTP error"
+
+                            Api.SerializationError serializationError ->
+                                "Serialization error: "
+                                    ++ (case serializationError of
+                                            Serialize.CustomError _ ->
+                                                "Custom error"
+
+                                            Serialize.DataCorrupted ->
+                                                "Data corrupted"
+
+                                            Serialize.SerializerOutOfDate ->
+                                                "Serializer out of date"
+                                       )
             )
         |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
 

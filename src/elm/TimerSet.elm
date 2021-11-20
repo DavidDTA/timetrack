@@ -1,4 +1,4 @@
-module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, create, get, history, keyTimerId, listTimerIds, reset, timerIdFromRaw, timerIdToRaw, toggleTimer, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, create, get, history, keyTimerId, listTimerIds, reset, startTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
 
 import Duration
 import List.Extra
@@ -101,24 +101,11 @@ reset (TimerSet timerSet) =
     TimerSet { timers = [], history = Timeline.empty }
 
 
-toggleTimer : TimerId -> Time.Posix -> TimerSet -> TimerSet
-toggleTimer timerId now (TimerSet timerSet) =
-    let
-        value =
-            case Timeline.at now timerSet.history of
-                Nothing ->
-                    Just timerId
-
-                Just currentTimerId ->
-                    if currentTimerId == timerId then
-                        Nothing
-
-                    else
-                        Just timerId
-    in
+startTimer : Maybe TimerId -> Time.Posix -> TimerSet -> TimerSet
+startTimer timerId now (TimerSet timerSet) =
     TimerSet
         { timerSet
-            | history = Timeline.set value now Nothing timerSet.history
+            | history = Timeline.set timerId now Nothing timerSet.history
         }
 
 
