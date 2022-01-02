@@ -6,7 +6,7 @@ git archive --format=tar HEAD | tar xf - --directory="${workspace}"
 ln -s /workdir/functions/node_modules /publish/functions/node_modules
 
 cd "${workspace}"
-bin/ensure-dependencies
+bin/configure
 
 elm make src/elm/Client.elm --output="src/static/-/src.js" --optimize
 elm make src/elm/Server.elm --output="functions/src.js" --optimize

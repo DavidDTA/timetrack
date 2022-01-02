@@ -1,6 +1,6 @@
 #!/usr/bin/env -S bin/docker --publish 8000:8000 --publish 9005:9005 -- sh -e
 
-bin/ensure-dependencies
+bin/configure
 
 workspace=/tmp/live
 mkdir "${workspace}"
