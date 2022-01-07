@@ -6,7 +6,7 @@ RUN apk add --no-cache \
     gzip \
     npm \
     openjdk8-jre \
-    parallel
+    tmux
 
 RUN curl -L https://github.com/elm/compiler/releases/download/0.19.1/binary-for-linux-64-bit.gz \
     | gunzip >/usr/local/bin/elm \

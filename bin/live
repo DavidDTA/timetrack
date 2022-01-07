@@ -2,10 +2,17 @@
 
 bin/configure
 
-workspace=/tmp/live
+workspace="/tmp/live"
 mkdir "${workspace}"
+mkdir "${workspace}/-"
 cp -r src/static/* "${workspace}"
-parallel --line-buffer ::: \
-    "elm-live src/elm/Client.elm --host=0.0.0.0 --proxy-prefix=/-/api --proxy-host=http://localhost:5000/-/api --open --dir=${workspace} -- --output=${workspace}/-/src.js --debug" \
-    "elm-live src/elm/Server.elm --no-server -- --output=functions/src.js --debug" \
-    "firebase emulators:start"
+output="${PWD}/functions/src.js"
+link="${workspace}/-/src.js"
+touch "${output}"
+ln -s "${output}" "${link}"
+tmux new-session -x- -y- \;\
+  set mouse on \;\
+  split-window -h -d -l 80 \;\
+  new-window -d \;\
+  send-keys -t 0.1 "/usr/bin/env elm-live src/elm/Client.elm src/elm/Server.elm --host=0.0.0.0 --proxy-prefix=/-/api --proxy-host=http://localhost:5000/-/api --dir=${workspace} -- --output=${output} --debug" C-m \;\
+  send-keys -t 1.0 "/usr/bin/env firebase emulators:start" C-m

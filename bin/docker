@@ -2,7 +2,7 @@
 
 image_id=$(docker build . --quiet)
 
-mkdir -p build/volumes/elm-home build/volumes/firebase-config
+mkdir -p build/volumes/home
 
 docker_args=()
 for arg in "${@}"; do
@@ -18,7 +18,7 @@ docker run \
     --interactive \
     --tty \
     --rm \
+    --user $(id -u):$(id -g) \
     --mount type=bind,source="$(pwd)",target=/workdir \
-    --mount type=bind,source="$(pwd)"/build/volumes/elm-home,target=/home/.elm \
-    --mount type=bind,source="$(pwd)"/build/volumes/firebase-config,target=/home/.config \
+    --mount type=bind,source="$(pwd)"/build/volumes/home,target=/home \
     "${docker_args[@]}" "$image_id" "$@"
