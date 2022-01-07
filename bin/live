@@ -14,5 +14,5 @@ tmux new-session -x- -y- \;\
   set mouse on \;\
   split-window -h -d -l 80 \;\
   new-window -d \;\
-  send-keys -t 0.1 "/usr/bin/env elm-live src/elm/Client.elm src/elm/Server.elm --host=0.0.0.0 --proxy-prefix=/-/api --proxy-host=http://localhost:5000/-/api --dir=${workspace} -- --output=${output} --debug" C-m \;\
-  send-keys -t 1.0 "/usr/bin/env firebase emulators:start" C-m
+  send-keys -t 0.1 "elm-live src/elm/Client.elm src/elm/Server.elm --host=0.0.0.0 --proxy-prefix=/-/api --proxy-host=http://localhost:5000/-/api --dir=${workspace} -- --output=${output} --debug" C-m \;\
+  send-keys -t 1.0 "firebase emulators:start" C-m
