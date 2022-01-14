@@ -1,6 +1,5 @@
-module Api exposing (Error(..), Request(..), Response(..), Update(..), send)
+module Api exposing (Error(..), Request(..), Response(..), Update(..), receive, respond, send)
 
-import Bytes
 import Http
 import Json.Decode
 import Json.Decode.Extra
@@ -31,23 +30,24 @@ type Update
     | TimersSetActive (Maybe TimerSet.TimerId) Time.Posix
 
 
-type Error
+type Error error
     = BadUrl String
     | Timeout
     | NetworkError
-    | HttpError Http.Metadata Bytes.Bytes
-    | SerializationError (Serialize.Error Never)
+    | HttpError Http.Metadata String
+    | MalformedJson Json.Decode.Error
+    | SerializationError (Serialize.Error error)
 
 
-send : Request -> (Result Error Response -> msg) -> Cmd msg
+send : Request -> (Result (Error error) Response -> msg) -> Cmd msg
 send request tag =
     Http.request
         { method = "POST"
         , headers = []
-        , url = "/-/api/"
-        , body = Http.bytesBody "application/octet-stream" (Serialize.encodeToBytes serializeRequest request)
+        , url = "/-/api"
+        , body = Http.jsonBody (Serialize.encodeToJson serializeRequest request)
         , expect =
-            Http.expectBytesResponse tag
+            Http.expectStringResponse tag
                 (\response ->
                     case response of
                         Http.BadUrl_ url ->
@@ -63,12 +63,21 @@ send request tag =
                             Result.Err (HttpError metadata body)
 
                         Http.GoodStatus_ metadata body ->
-                            Serialize.decodeFromBytes serializeResponse body
-                                |> Result.mapError SerializationError
+                            Json.Decode.decodeString Json.Decode.value body
+                                |> Result.mapError MalformedJson
+                                |> Result.andThen (Serialize.decodeFromJson serializeResponse >> Result.mapError SerializationError)
                 )
         , timeout = Nothing
         , tracker = Nothing
         }
+
+
+receive =
+    Serialize.decodeFromJson serializeRequest
+
+
+respond =
+    Serialize.encodeToJson serializeResponse >> Json.Encode.encode 0
 
 
 serializeRequest =

@@ -74,11 +74,11 @@ type Edit
 
 type Error
     = TimeZoneError TimeZone.Error
-    | ApiError Api.Error
+    | ApiError (Api.Error Never)
 
 
 type Msg
-    = ApiResponse (Result Api.Error Api.Response)
+    = ApiResponse (Result (Api.Error Never) Api.Response)
     | Error Error
     | Nop
     | UpdateNow Time.Posix
@@ -463,6 +463,9 @@ viewErrors { errors } =
 
                             Api.HttpError _ _ ->
                                 "HTTP error"
+
+                            Api.MalformedJson _ ->
+                                "Malformed json"
 
                             Api.SerializationError serializationError ->
                                 "Serialization error: "

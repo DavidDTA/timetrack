@@ -1,12 +1,18 @@
-module IncrementId exposing (increment, zero)
+module IncrementId exposing (Id, increment, zero)
 
 import Basics.Extra
 
 
+type alias Id =
+    List Int
+
+
+zero : Id
 zero =
     []
 
 
+increment : Id -> Id
 increment x =
     case x of
         [] ->
