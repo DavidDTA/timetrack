@@ -105,8 +105,11 @@ init _ _ _ =
       , clearConfirmation = ClearConfirmationHidden
       , edit = Nothing
       }
-    , TimeZone.getZone
-        |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
+    , Cmd.batch
+        [ Api.send Api.Get ApiResponse
+        , TimeZone.getZone
+            |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
+        ]
     )
 
 
@@ -461,8 +464,15 @@ viewErrors { errors } =
                             Api.NetworkError ->
                                 "Network error"
 
-                            Api.HttpError _ _ ->
-                                "HTTP error"
+                            Api.HttpError { statusCode } _ ->
+                                if statusCode >= 400 && statusCode < 500 then
+                                    "HTTP client error"
+
+                                else if statusCode >= 500 && statusCode < 600 then
+                                    "HTTP server error"
+
+                                else
+                                    "HTTP error"
 
                             Api.MalformedJson _ ->
                                 "Malformed json"

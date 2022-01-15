@@ -4,6 +4,8 @@ import Api
 import Functions
 import Json.Decode
 import Json.Encode
+import Timeline
+import TimerSet
 
 
 port requests : (( Json.Encode.Value, Json.Encode.Value ) -> msg) -> Sub msg
@@ -50,7 +52,7 @@ sharedInit flags =
 
 
 requestInit request =
-    Functions.fail
+    Functions.succeed (Api.Value (TimerSet.create [] Timeline.empty))
 
 
 requestUpdate msg model =
