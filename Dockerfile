@@ -6,6 +6,7 @@ RUN apk add --no-cache \
     curl \
     git \
     gzip \
+    make \
     npm \
     openjdk8-jre \
     tmux \
@@ -29,3 +30,5 @@ VOLUME /workdir/functions/node_modules
 
 ENV HOME=/home
 WORKDIR /workdir
+
+RUN touch /.inside_docker_container

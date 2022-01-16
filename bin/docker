@@ -1,9 +1,5 @@
 #!/usr/bin/env -S bash -e
 
-image_id=$(docker build . --quiet)
-
-mkdir -p build/volumes/home
-
 docker_args=()
 for arg in "${@}"; do
   shift
@@ -13,6 +9,19 @@ for arg in "${@}"; do
     docker_args=("${docker_args[@]}" "$arg")
   fi
 done
+
+if [ -f "/.inside_docker_container" ]; then
+  if [ "${#docker_args[@]}" = "0" ]; then
+    "$@"
+    exit 0
+  else
+    exit 1
+  fi
+fi
+
+image_id=$(docker build . --quiet)
+
+mkdir -p build/volumes/home
 
 docker run \
     --interactive \
