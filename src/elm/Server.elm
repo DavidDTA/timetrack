@@ -19,8 +19,7 @@ type alias Model =
     }
 
 
-error _ =
-    Cmd.none
+port errors : String -> Cmd ms
 
 
 main =
@@ -48,7 +47,9 @@ sharedInit flags =
             ( { authToken = Just value }, Cmd.none )
 
         Err err ->
-            ( { authToken = Nothing }, error err )
+            ( { authToken = Nothing }
+            , errors "Failure to parse auth token"
+            )
 
 
 requestInit request =
