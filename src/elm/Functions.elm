@@ -60,11 +60,15 @@ server { sharedInit, requestInit, requestUpdate, requestSubscriptions, requestPo
 
 
 init sharedInit flags =
+    let
+        ( sharedModel, cmd ) =
+            sharedInit flags
+    in
     ( { requests = Dict.empty
-      , sharedModel = sharedInit flags
+      , sharedModel = sharedModel
       , nextId = IncrementId.zero
       }
-    , Cmd.none
+    , cmd
     )
 
 
@@ -76,7 +80,7 @@ updateForStep responsePort serializeResponse id responseToken result model =
             )
 
         Continue { newRequestModel, cmd } ->
-            ( { model | requests = Dict.insert id newRequestModel model.requests }
+            ( { model | requests = Dict.insert id { responseToken = responseToken, requestModel = newRequestModel } model.requests }
             , Cmd.map (\requestMsg -> Continuation { id = id, requestMsg = requestMsg }) cmd
             )
 

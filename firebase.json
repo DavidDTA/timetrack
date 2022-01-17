@@ -1,4 +1,9 @@
 {
+  "emulators": {
+    "ui": {
+      "host": "0.0.0.0"
+    }
+  },
   "hosting": {
     "public": "src/static",
     "rewrites": [

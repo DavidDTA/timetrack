@@ -19,7 +19,7 @@ type alias Model =
     }
 
 
-port errors : String -> Cmd ms
+port errors : String -> Cmd msg
 
 
 main =

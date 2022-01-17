@@ -1,4 +1,4 @@
-#!/usr/bin/env -S bin/docker --publish 8000:8000 --publish 9005:9005 -- sh -e
+#!/usr/bin/env -S bin/docker --publish 4000:4000 --publish 8000:8000 -- sh -e
 
 bin/configure
 
