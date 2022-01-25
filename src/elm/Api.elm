@@ -1,5 +1,6 @@
 module Api exposing (Error(..), Request(..), Response(..), Update(..), receive, respond, send)
 
+import Auth
 import Http
 import Json.Decode
 import Json.Decode.Extra
@@ -39,11 +40,11 @@ type Error error
     | SerializationError (Serialize.Error error)
 
 
-send : Request -> (Result (Error error) Response -> msg) -> Cmd msg
-send request tag =
+send : String -> Request -> (Result (Error error) Response -> msg) -> Cmd msg
+send username request tag =
     Http.request
         { method = "POST"
-        , headers = []
+        , headers = [ Http.header "Authorization" (Auth.serializeFiat username) ]
         , url = "/-/api"
         , body = Http.jsonBody (Serialize.encodeToJson serializeRequest request)
         , expect =

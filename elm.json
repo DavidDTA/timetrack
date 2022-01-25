@@ -30,7 +30,8 @@
             "justinmimbs/time-extra": "1.1.0",
             "justinmimbs/timezone-data": "2.1.2",
             "mdgriffith/elm-ui": "1.1.0",
-            "rtfeldman/elm-css": "16.1.0"
+            "rtfeldman/elm-css": "16.1.0",
+            "truqu/elm-base64": "2.0.4"
         },
         "indirect": {
             "bburdette/toop": "1.0.1",

@@ -43,6 +43,7 @@ main =
 
 type alias Model =
     { time : TimeModel
+    , username : Username
     , errors : List Error
     , historySelectedDate : Maybe Date.Date
     , timerSet : Maybe TimerSet.TimerSet
@@ -66,6 +67,11 @@ type TimeModel
         { now : Time.Posix
         , zone : Time.Zone
         }
+
+
+type Username
+    = EditingUsername String
+    | SelectedUsername String
 
 
 type Edit
@@ -93,11 +99,14 @@ type Msg
     | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
     | TimerToggleCategory TimerSet.TimerId TimerSet.Category
     | TimerToggleRunning TimerSet.TimerId
+    | UsernameEdit String
+    | UsernameSubmit
 
 
 init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init _ _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
+      , username = EditingUsername ""
       , errors = []
       , historySelectedDate = Nothing
       , timerSet = Nothing
@@ -105,11 +114,8 @@ init _ _ _ =
       , clearConfirmation = ClearConfirmationHidden
       , edit = Nothing
       }
-    , Cmd.batch
-        [ Api.send Api.Get ApiResponse
-        , TimeZone.getZone
-            |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
-        ]
+    , TimeZone.getZone
+        |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
     )
 
 
@@ -292,13 +298,21 @@ update msg model =
                 ( _, _ ) ->
                     nop
 
+        UsernameEdit username ->
+            ( { model | username = EditingUsername username }, Cmd.none )
+
+        UsernameSubmit ->
+            case model.username of
+                EditingUsername username ->
+                    ( { model | username = SelectedUsername username }, Api.send username Api.Get ApiResponse )
+
+                SelectedUsername _ ->
+                    ( model, Cmd.none )
+
 
 enqueueAll updates model =
-    case model.timerSet of
-        Nothing ->
-            ( model, Cmd.none )
-
-        Just timerSet ->
+    case ( model.username, model.timerSet ) of
+        ( SelectedUsername username, Just timerSet ) ->
             let
                 ( newPending, cmd ) =
                     case ( model.pending, updates ) of
@@ -306,12 +320,15 @@ enqueueAll updates model =
                             ( Just { current = updates, queue = [] }, Cmd.none )
 
                         ( Nothing, _ ) ->
-                            ( Just { current = updates, queue = [] }, Api.send (Api.Update updates) ApiResponse )
+                            ( Just { current = updates, queue = [] }, Api.send username (Api.Update updates) ApiResponse )
 
                         ( Just pending, _ ) ->
                             ( Just { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
             in
             ( { model | timerSet = Just (List.foldl applyUpdate timerSet updates), pending = newPending }, cmd )
+
+        _ ->
+            ( model, Cmd.none )
 
 
 enqueue apiUpdate =
@@ -429,12 +446,17 @@ globalCss { timerSet, time } =
 
 viewBody model =
     viewErrors model
-        ++ (case ( model.time, model.timerSet ) of
-                ( TimeInitialized time, Just timerSet ) ->
-                    viewTimers time timerSet model ++ viewHistory time timerSet model
+        ++ (case model.username of
+                EditingUsername _ ->
+                    viewAuthentication
 
-                _ ->
-                    viewLoading
+                SelectedUsername _ ->
+                    case ( model.time, model.timerSet ) of
+                        ( TimeInitialized time, Just timerSet ) ->
+                            viewTimers time timerSet model ++ viewHistory time timerSet model
+
+                        _ ->
+                            viewLoading
            )
 
 
@@ -494,7 +516,14 @@ viewErrors { errors } =
 
 
 viewLoading =
-    []
+    [ Html.Styled.text "Loading..." ]
+
+
+viewAuthentication =
+    [ Html.Styled.text "Enter username:"
+    , Html.Styled.input [ Html.Styled.Events.onInput UsernameEdit ] []
+    , Html.Styled.button [ Html.Styled.Events.onClick UsernameSubmit ] [ Html.Styled.text "Submit" ]
+    ]
 
 
 viewPaused =
