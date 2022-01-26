@@ -1,6 +1,7 @@
-module Api exposing (Error(..), Request(..), Response(..), Update(..), receive, respond, send)
+module Api exposing (Request(..), Response(..), Update(..), endpoint)
 
 import Auth
+import Functions
 import Http
 import Json.Decode
 import Json.Decode.Extra
@@ -31,54 +32,8 @@ type Update
     | TimersSetActive (Maybe TimerSet.TimerId) Time.Posix
 
 
-type Error error
-    = BadUrl String
-    | Timeout
-    | NetworkError
-    | HttpError Http.Metadata String
-    | MalformedJson Json.Decode.Error
-    | SerializationError (Serialize.Error error)
-
-
-send : String -> Request -> (Result (Error error) Response -> msg) -> Cmd msg
-send username request tag =
-    Http.request
-        { method = "POST"
-        , headers = [ Http.header "Authorization" (Auth.serializeFiat username) ]
-        , url = "/-/api"
-        , body = Http.jsonBody (Serialize.encodeToJson serializeRequest request)
-        , expect =
-            Http.expectStringResponse tag
-                (\response ->
-                    case response of
-                        Http.BadUrl_ url ->
-                            Result.Err (BadUrl url)
-
-                        Http.Timeout_ ->
-                            Result.Err Timeout
-
-                        Http.NetworkError_ ->
-                            Result.Err NetworkError
-
-                        Http.BadStatus_ metadata body ->
-                            Result.Err (HttpError metadata body)
-
-                        Http.GoodStatus_ metadata body ->
-                            Json.Decode.decodeString Json.Decode.value body
-                                |> Result.mapError MalformedJson
-                                |> Result.andThen (Serialize.decodeFromJson serializeResponse >> Result.mapError SerializationError)
-                )
-        , timeout = Nothing
-        , tracker = Nothing
-        }
-
-
-receive =
-    Serialize.decodeFromJson serializeRequest
-
-
-respond =
-    Serialize.encodeToJson serializeResponse >> Json.Encode.encode 0
+endpoint =
+    Functions.codecEndpoint "/-/api" serializeRequest serializeResponse
 
 
 serializeRequest =

@@ -1,10 +1,66 @@
-module Functions exposing (continue, fail, server, succeed)
+module Functions exposing (Endpoint, Error(..), codecEndpoint, continue, fail, send, server, succeed)
 
+import Auth
 import Dict
+import Http
 import IncrementId
 import Json.Decode
 import Json.Encode
 import Serialize
+
+
+type Endpoint req res
+    = Endpoint
+        { path : String
+        , requestCodec : Serialize.Codec Never req
+        , responseCodec : Serialize.Codec Never res
+        }
+
+
+type Error
+    = BadUrl String
+    | Timeout
+    | NetworkError
+    | HttpError Http.Metadata String
+    | MalformedJson Json.Decode.Error
+    | SerializationError (Serialize.Error Never)
+
+
+codecEndpoint path requestCodec responseCodec =
+    Endpoint { path = path, requestCodec = requestCodec, responseCodec = responseCodec }
+
+
+send : Endpoint req res -> String -> req -> (Result Error res -> msg) -> Cmd msg
+send (Endpoint { path, requestCodec, responseCodec }) username request tag =
+    Http.request
+        { method = "POST"
+        , headers = [ Http.header "Authorization" (Auth.serializeFiat username) ]
+        , url = path
+        , body = Http.jsonBody (Serialize.encodeToJson requestCodec request)
+        , expect =
+            Http.expectStringResponse tag
+                (\response ->
+                    case response of
+                        Http.BadUrl_ url ->
+                            Result.Err (BadUrl url)
+
+                        Http.Timeout_ ->
+                            Result.Err Timeout
+
+                        Http.NetworkError_ ->
+                            Result.Err NetworkError
+
+                        Http.BadStatus_ metadata body ->
+                            Result.Err (HttpError metadata body)
+
+                        Http.GoodStatus_ metadata body ->
+                            Json.Decode.decodeString Json.Decode.value body
+                                |> Result.mapError MalformedJson
+                                |> Result.andThen (Serialize.decodeFromJson responseCodec >> Result.mapError SerializationError)
+                )
+        , timeout = Nothing
+        , tracker = Nothing
+        }
 
 
 type alias Model sharedModel requestModel =
@@ -51,10 +107,10 @@ continue =
     Continue
 
 
-server { sharedInit, requestInit, requestUpdate, requestSubscriptions, requestPort, responsePort, parseRequest, serializeResponse } =
+server { sharedInit, requestInit, requestUpdate, requestSubscriptions, requestPort, responsePort, endpoint } =
     Platform.worker
         { init = init sharedInit
-        , update = update requestInit requestUpdate responsePort parseRequest serializeResponse
+        , update = update requestInit requestUpdate responsePort endpoint
         , subscriptions = subscriptions requestPort requestSubscriptions
         }
 
@@ -72,7 +128,7 @@ init sharedInit flags =
     )
 
 
-updateForStep responsePort serializeResponse id responseToken result model =
+updateForStep responsePort responseCodec id responseToken result model =
     case result of
         Fail ->
             ( { model | requests = Dict.remove id model.requests }
@@ -86,11 +142,11 @@ updateForStep responsePort serializeResponse id responseToken result model =
 
         Succeed response ->
             ( { model | requests = Dict.remove id model.requests }
-            , responsePort ( responseToken, 200, serializeResponse response )
+            , responsePort ( responseToken, 200, Serialize.encodeToJson responseCodec response |> Json.Encode.encode 0 )
             )
 
 
-update requestInit requestUpdate responsePort parseRequest serializeResponse msg model =
+update requestInit requestUpdate responsePort (Endpoint { requestCodec, responseCodec }) msg model =
     case msg of
         NewRequest { request, responseToken } ->
             let
@@ -102,7 +158,7 @@ update requestInit requestUpdate responsePort parseRequest serializeResponse msg
                         |> Json.Decode.andThen
                             (\( method, body ) ->
                                 if method == "POST" then
-                                    case parseRequest body of
+                                    case Serialize.decodeFromJson requestCodec body of
                                         Result.Err err ->
                                             Json.Decode.fail
                                                 (case err of
@@ -128,7 +184,7 @@ update requestInit requestUpdate responsePort parseRequest serializeResponse msg
                     ( model, responsePort ( responseToken, 400, "" ) )
 
                 Result.Ok parsedRequest ->
-                    updateForStep responsePort serializeResponse model.nextId responseToken (requestInit parsedRequest) { model | nextId = IncrementId.increment model.nextId }
+                    updateForStep responsePort responseCodec model.nextId responseToken (requestInit parsedRequest) { model | nextId = IncrementId.increment model.nextId }
 
         Continuation { id, requestMsg } ->
             case Dict.get id model.requests of
@@ -136,7 +192,7 @@ update requestInit requestUpdate responsePort parseRequest serializeResponse msg
                     ( model, Cmd.none )
 
                 Just { responseToken, requestModel } ->
-                    updateForStep responsePort serializeResponse id responseToken (requestUpdate requestMsg requestModel) model
+                    updateForStep responsePort responseCodec id responseToken (requestUpdate requestMsg requestModel) model
 
 
 subscriptions requestPort requestSubscriptions model =

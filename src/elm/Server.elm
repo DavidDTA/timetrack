@@ -30,8 +30,7 @@ main =
         , requestSubscriptions = requestSubscriptions
         , requestPort = requests
         , responsePort = responses
-        , parseRequest = Api.receive
-        , serializeResponse = Api.respond
+        , endpoint = Api.endpoint
         }
 
 

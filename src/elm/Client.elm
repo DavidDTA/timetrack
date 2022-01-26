@@ -10,6 +10,7 @@ import Css.Global
 import Css.Transitions
 import Date
 import Duration
+import Functions
 import Html.Styled
 import Html.Styled.Attributes
 import Html.Styled.Events
@@ -80,11 +81,11 @@ type Edit
 
 type Error
     = TimeZoneError TimeZone.Error
-    | ApiError (Api.Error Never)
+    | ApiError Functions.Error
 
 
 type Msg
-    = ApiResponse (Result (Api.Error Never) Api.Response)
+    = ApiResponse (Result Functions.Error Api.Response)
     | Error Error
     | Nop
     | UpdateNow Time.Posix
@@ -304,7 +305,7 @@ update msg model =
         UsernameSubmit ->
             case model.username of
                 EditingUsername username ->
-                    ( { model | username = SelectedUsername username }, Api.send username Api.Get ApiResponse )
+                    ( { model | username = SelectedUsername username }, Functions.send Api.endpoint username Api.Get ApiResponse )
 
                 SelectedUsername _ ->
                     ( model, Cmd.none )
@@ -320,7 +321,7 @@ enqueueAll updates model =
                             ( Just { current = updates, queue = [] }, Cmd.none )
 
                         ( Nothing, _ ) ->
-                            ( Just { current = updates, queue = [] }, Api.send username (Api.Update updates) ApiResponse )
+                            ( Just { current = updates, queue = [] }, Functions.send Api.endpoint username (Api.Update updates) ApiResponse )
 
                         ( Just pending, _ ) ->
                             ( Just { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
@@ -477,16 +478,16 @@ viewErrors { errors } =
 
                     ApiError apiError ->
                         case apiError of
-                            Api.BadUrl url ->
+                            Functions.BadUrl url ->
                                 "Bad url: " ++ url
 
-                            Api.Timeout ->
+                            Functions.Timeout ->
                                 "Timeout"
 
-                            Api.NetworkError ->
+                            Functions.NetworkError ->
                                 "Network error"
 
-                            Api.HttpError { statusCode } _ ->
+                            Functions.HttpError { statusCode } _ ->
                                 if statusCode >= 400 && statusCode < 500 then
                                     "HTTP client error"
 
@@ -496,10 +497,10 @@ viewErrors { errors } =
                                 else
                                     "HTTP error"
 
-                            Api.MalformedJson _ ->
+                            Functions.MalformedJson _ ->
                                 "Malformed json"
 
-                            Api.SerializationError serializationError ->
+                            Functions.SerializationError serializationError ->
                                 "Serialization error: "
                                     ++ (case serializationError of
                                             Serialize.CustomError _ ->
