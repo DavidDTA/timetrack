@@ -1,6 +1,5 @@
 module Functions exposing (Endpoint, Error(..), codecEndpoint, continue, fail, send, server, succeed)
 
-import Auth
 import Dict
 import Http
 import IncrementId
@@ -30,11 +29,11 @@ codecEndpoint path requestCodec responseCodec =
     Endpoint { path = path, requestCodec = requestCodec, responseCodec = responseCodec }
 
 
-send : Endpoint req res -> String -> req -> (Result Error res -> msg) -> Cmd msg
-send (Endpoint { path, requestCodec, responseCodec }) username request tag =
+send : Endpoint req res -> req -> (Result Error res -> msg) -> Cmd msg
+send (Endpoint { path, requestCodec, responseCodec }) request tag =
     Http.request
         { method = "POST"
-        , headers = [ Http.header "Authorization" (Auth.serializeFiat username) ]
+        , headers = []
         , url = path
         , body = Http.jsonBody (Serialize.encodeToJson requestCodec request)
         , expect =

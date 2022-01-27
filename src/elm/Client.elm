@@ -305,7 +305,7 @@ update msg model =
         UsernameSubmit ->
             case model.username of
                 EditingUsername username ->
-                    ( { model | username = SelectedUsername username }, Functions.send Api.endpoint username Api.Get ApiResponse )
+                    ( { model | username = SelectedUsername username }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Get } ApiResponse )
 
                 SelectedUsername _ ->
                     ( model, Cmd.none )
@@ -321,7 +321,7 @@ enqueueAll updates model =
                             ( Just { current = updates, queue = [] }, Cmd.none )
 
                         ( Nothing, _ ) ->
-                            ( Just { current = updates, queue = [] }, Functions.send Api.endpoint username (Api.Update updates) ApiResponse )
+                            ( Just { current = updates, queue = [] }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update updates } ApiResponse )
 
                         ( Just pending, _ ) ->
                             ( Just { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )

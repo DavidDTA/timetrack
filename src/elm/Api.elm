@@ -1,6 +1,5 @@
 module Api exposing (Request(..), Response(..), Update(..), endpoint)
 
-import Auth
 import Functions
 import Http
 import Json.Decode
@@ -12,6 +11,14 @@ import Serialize
 import Time
 import Timeline
 import TimerSet
+
+
+
+-- Authentication is a strong word here. For debugging purposes, we simply trust the client is who they say they are.
+
+
+type alias RequestWithAuthentication =
+    { usernameByFiat : String, request : Request }
 
 
 type Request
@@ -33,7 +40,14 @@ type Update
 
 
 endpoint =
-    Functions.codecEndpoint "/-/api" serializeRequest serializeResponse
+    Functions.codecEndpoint "/-/api" serializeRequestWithAuthentication serializeResponse
+
+
+serializeRequestWithAuthentication =
+    Serialize.record RequestWithAuthentication
+        |> Serialize.field .usernameByFiat Serialize.string
+        |> Serialize.field .request serializeRequest
+        |> Serialize.finishRecord
 
 
 serializeRequest =
