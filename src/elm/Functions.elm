@@ -86,7 +86,7 @@ type Msg requestMsg
 
 
 type Step response requestModel requestMsg
-    = Fail
+    = Fail String
     | Succeed response
     | Continue
         { newRequestModel : requestModel
@@ -106,15 +106,15 @@ continue =
     Continue
 
 
-server { sharedInit, requestInit, requestUpdate, requestSubscriptions, requestPort, responsePort, endpoint } =
+server ({ endpoint } as config) =
     Platform.worker
-        { init = init sharedInit
-        , update = update requestInit requestUpdate responsePort endpoint
-        , subscriptions = subscriptions requestPort requestSubscriptions
+        { init = init config
+        , update = update config endpoint
+        , subscriptions = subscriptions config
         }
 
 
-init sharedInit flags =
+init { sharedInit } flags =
     let
         ( sharedModel, cmd ) =
             sharedInit flags
@@ -127,11 +127,14 @@ init sharedInit flags =
     )
 
 
-updateForStep responsePort responseCodec id responseToken result model =
+updateForStep { responsePort, errorPort } responseCodec id responseToken result model =
     case result of
-        Fail ->
+        Fail message ->
             ( { model | requests = Dict.remove id model.requests }
-            , responsePort ( responseToken, 500, "" )
+            , Cmd.batch
+                [ responsePort ( responseToken, 500, "" )
+                , errorPort message
+                ]
             )
 
         Continue { newRequestModel, cmd } ->
@@ -145,7 +148,7 @@ updateForStep responsePort responseCodec id responseToken result model =
             )
 
 
-update requestInit requestUpdate responsePort (Endpoint { requestCodec, responseCodec }) msg model =
+update ({ requestInit, requestUpdate, responsePort, errorPort } as config) (Endpoint { requestCodec, responseCodec }) msg model =
     case msg of
         NewRequest { request, responseToken } ->
             let
@@ -183,18 +186,18 @@ update requestInit requestUpdate responsePort (Endpoint { requestCodec, response
                     ( model, responsePort ( responseToken, 400, "" ) )
 
                 Result.Ok parsedRequest ->
-                    updateForStep responsePort responseCodec model.nextId responseToken (requestInit parsedRequest) { model | nextId = IncrementId.increment model.nextId }
+                    updateForStep config responseCodec model.nextId responseToken (requestInit model.sharedModel parsedRequest) { model | nextId = IncrementId.increment model.nextId }
 
         Continuation { id, requestMsg } ->
             case Dict.get id model.requests of
                 Nothing ->
-                    ( model, Cmd.none )
+                    ( model, errorPort "unexpected message" )
 
                 Just { responseToken, requestModel } ->
-                    updateForStep responsePort responseCodec id responseToken (requestUpdate requestMsg requestModel) model
+                    updateForStep config responseCodec id responseToken (requestUpdate requestMsg requestModel) model
 
 
-subscriptions requestPort requestSubscriptions model =
+subscriptions { requestPort, requestSubscriptions } model =
     Sub.batch
         [ requestPort (\( request, responseToken ) -> NewRequest { request = request, responseToken = responseToken })
         , Dict.toList model.requests

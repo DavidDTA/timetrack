@@ -318,7 +318,7 @@ enqueueAll updates model =
                 ( newPending, cmd ) =
                     case ( model.pending, updates ) of
                         ( Nothing, [] ) ->
-                            ( Just { current = updates, queue = [] }, Cmd.none )
+                            ( Nothing, Cmd.none )
 
                         ( Nothing, _ ) ->
                             ( Just { current = updates, queue = [] }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update updates } ApiResponse )

@@ -1,4 +1,4 @@
-module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, create, get, history, keyTimerId, listTimerIds, reset, startTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, create, empty, get, history, keyTimerId, listTimerIds, reset, startTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
 
 import Duration
 import List.Extra
@@ -45,6 +45,11 @@ timerIdFromRaw =
 timerIdToRaw : TimerId -> Int
 timerIdToRaw (TimerId id) =
     id
+
+
+empty : TimerSet
+empty =
+    create [] Timeline.empty
 
 
 create : List Timer -> Timeline.Timeline TimerId -> TimerSet
