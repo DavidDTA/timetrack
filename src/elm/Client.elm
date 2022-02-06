@@ -96,6 +96,7 @@ type Error
 
 type Msg
     = ApiResponse (Result Functions.Error Api.Response)
+    | ApiRetry
     | Error Error
     | Nop
     | UpdateNow Time.Posix
@@ -161,6 +162,26 @@ update msg model =
                             in
                             { model | timerSet = Just serverTimerSet, pending = PendingIdle }
                                 |> enqueueAll newQueue
+
+        ApiRetry ->
+            case model.pending of
+                PendingIdle ->
+                    ( model, Cmd.none )
+
+                Pending { current, queue } ->
+                    case current of
+                        PendingOutstanding _ ->
+                            ( model, Cmd.none )
+
+                        PendingError failed ->
+                            let
+                                ( model1, cmd1 ) =
+                                    enqueueAll failed { model | pending = PendingIdle }
+
+                                ( model2, cmd2 ) =
+                                    enqueueAll queue model1
+                            in
+                            ( model2, Cmd.batch [ cmd1, cmd2 ] )
 
         Error error ->
             ( { model
@@ -490,7 +511,8 @@ viewErrors { errors, pending } =
             ]
             [ Html.Styled.text "⟳" ]
         , Html.Styled.div
-            [ Html.Styled.Attributes.css
+            [ Html.Styled.Events.onClick ApiRetry
+            , Html.Styled.Attributes.css
                 (cellProperties
                     ++ [ Css.opacity
                             (if retryable then
