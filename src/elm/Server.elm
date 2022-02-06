@@ -101,23 +101,6 @@ sharedInit flags =
             )
 
 
-getTimerSet firestore usernameByFiat =
-    Server.Storage.getTimerSet firestore usernameByFiat
-        |> Task.onError
-            (\error ->
-                case error of
-                    Firestore.Response { code } ->
-                        if code == 404 then
-                            Task.succeed TimerSet.empty
-
-                        else
-                            Task.fail error
-
-                    _ ->
-                        Task.fail error
-            )
-
-
 requestInit sharedModel { usernameByFiat, request } =
     case sharedModel of
         Nothing ->
@@ -126,7 +109,7 @@ requestInit sharedModel { usernameByFiat, request } =
         Just { firestore } ->
             case request of
                 Api.Get ->
-                    Functions.continue { cmd = getTimerSet firestore usernameByFiat |> Task.attempt GetTimerSet, newRequestModel = () }
+                    Functions.continue { cmd = Server.Storage.getTimerSet firestore usernameByFiat |> Task.attempt GetTimerSet, newRequestModel = () }
 
                 Api.Update _ ->
                     Functions.fail "not implemented"

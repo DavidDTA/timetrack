@@ -15,6 +15,19 @@ getTimerSet firestore username =
         |> Firestore.document (pathSafe username)
         |> Firestore.get (Firestore.Codec.asDecoder timerSetCodec)
         |> Task.map .fields
+        |> Task.onError
+            (\error ->
+                case error of
+                    Firestore.Response { code } ->
+                        if code == 404 then
+                            Task.succeed TimerSet.empty
+
+                        else
+                            Task.fail error
+
+                    _ ->
+                        Task.fail error
+            )
 
 
 pathSafe segment =
