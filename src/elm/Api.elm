@@ -1,4 +1,4 @@
-module Api exposing (Request(..), Response(..), Update(..), endpoint)
+module Api exposing (Request(..), Response(..), Update(..), applyUpdate, endpoint)
 
 import Functions
 import Http
@@ -37,6 +37,53 @@ type Update
     | TimersSetActivity TimerSet.TimerId (Maybe TimerSet.Activity)
     | TimersSetCategory TimerSet.TimerId (Maybe TimerSet.Category)
     | TimersSetActive (Maybe TimerSet.TimerId) Time.Posix
+
+
+applyUpdate apiUpdate timerSet =
+    case apiUpdate of
+        TimersAddAndStart timestamp ->
+            let
+                ( newTimerSet, newTimerId ) =
+                    TimerSet.addTimer timerSet
+            in
+            TimerSet.startTimer (Just newTimerId) timestamp newTimerSet
+
+        TimersClear ->
+            TimerSet.reset timerSet
+
+        TimersRename timerId name ->
+            TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name }) timerSet
+
+        TimersSetActivity timerId activity ->
+            TimerSet.updateTimer timerId
+                (\timer ->
+                    { timer
+                        | activity =
+                            if timer.activity == activity then
+                                Nothing
+
+                            else
+                                activity
+                    }
+                )
+                timerSet
+
+        TimersSetCategory timerId category ->
+            TimerSet.updateTimer timerId
+                (\timer ->
+                    { timer
+                        | category =
+                            if timer.category == category then
+                                Nothing
+
+                            else
+                                category
+                    }
+                )
+                timerSet
+
+        TimersSetActive timerId timestamp ->
+            TimerSet.startTimer timerId timestamp timerSet
 
 
 endpoint =

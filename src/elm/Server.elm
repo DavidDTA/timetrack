@@ -111,8 +111,8 @@ requestInit sharedModel { usernameByFiat, request } =
                 Api.Get ->
                     Functions.continue { cmd = Server.Storage.getTimerSet firestore usernameByFiat |> Task.attempt GetTimerSet, newRequestModel = () }
 
-                Api.Update _ ->
-                    Functions.fail "not implemented"
+                Api.Update updates ->
+                    Functions.continue { cmd = Server.Storage.updateTimerSet firestore usernameByFiat (\timerSet -> List.foldl Api.applyUpdate timerSet updates) |> Task.attempt GetTimerSet, newRequestModel = () }
 
 
 requestUpdate msg model =

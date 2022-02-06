@@ -326,7 +326,7 @@ enqueueAll updates model =
                         ( Just pending, _ ) ->
                             ( Just { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
             in
-            ( { model | timerSet = Just (List.foldl applyUpdate timerSet updates), pending = newPending }, cmd )
+            ( { model | timerSet = Just (List.foldl Api.applyUpdate timerSet updates), pending = newPending }, cmd )
 
         _ ->
             ( model, Cmd.none )
@@ -334,53 +334,6 @@ enqueueAll updates model =
 
 enqueue apiUpdate =
     enqueueAll [ apiUpdate ]
-
-
-applyUpdate apiUpdate timerSet =
-    case apiUpdate of
-        Api.TimersAddAndStart timestamp ->
-            let
-                ( newTimerSet, newTimerId ) =
-                    TimerSet.addTimer timerSet
-            in
-            TimerSet.startTimer (Just newTimerId) timestamp newTimerSet
-
-        Api.TimersClear ->
-            TimerSet.reset timerSet
-
-        Api.TimersRename timerId name ->
-            TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name }) timerSet
-
-        Api.TimersSetActivity timerId activity ->
-            TimerSet.updateTimer timerId
-                (\timer ->
-                    { timer
-                        | activity =
-                            if timer.activity == activity then
-                                Nothing
-
-                            else
-                                activity
-                    }
-                )
-                timerSet
-
-        Api.TimersSetCategory timerId category ->
-            TimerSet.updateTimer timerId
-                (\timer ->
-                    { timer
-                        | category =
-                            if timer.category == category then
-                                Nothing
-
-                            else
-                                category
-                    }
-                )
-                timerSet
-
-        Api.TimersSetActive timerId timestamp ->
-            TimerSet.startTimer timerId timestamp timerSet
 
 
 maybeInitialize { now, zone } =
