@@ -48,10 +48,20 @@ type alias Model =
     , errors : List Error
     , historySelectedDate : Maybe Date.Date
     , timerSet : Maybe TimerSet.TimerSet
-    , pending : Maybe { current : List Api.Update, queue : List Api.Update }
+    , pending : Pending
     , clearConfirmation : ClearConfirmation
     , edit : Maybe Edit
     }
+
+
+type Pending
+    = PendingIdle
+    | Pending { current : PendingCurrent, queue : List Api.Update }
+
+
+type PendingCurrent
+    = PendingOutstanding (List Api.Update)
+    | PendingError (List Api.Update)
 
 
 type ClearConfirmation
@@ -111,7 +121,7 @@ init _ _ _ =
       , errors = []
       , historySelectedDate = Nothing
       , timerSet = Nothing
-      , pending = Nothing
+      , pending = PendingIdle
       , clearConfirmation = ClearConfirmationHidden
       , edit = Nothing
       }
@@ -143,17 +153,37 @@ update msg model =
                             let
                                 newQueue =
                                     case model.pending of
-                                        Nothing ->
+                                        PendingIdle ->
                                             []
 
-                                        Just { queue } ->
+                                        Pending { queue } ->
                                             List.reverse queue
                             in
-                            { model | timerSet = Just serverTimerSet, pending = Nothing }
+                            { model | timerSet = Just serverTimerSet, pending = PendingIdle }
                                 |> enqueueAll newQueue
 
         Error error ->
-            ( { model | errors = model.errors ++ [ error ] }, Cmd.none )
+            ( { model
+                | errors = model.errors ++ [ error ]
+                , pending =
+                    case model.pending of
+                        PendingIdle ->
+                            PendingIdle
+
+                        Pending { current, queue } ->
+                            Pending
+                                { current =
+                                    case current of
+                                        PendingOutstanding outstanding ->
+                                            PendingError outstanding
+
+                                        PendingError outstanding ->
+                                            PendingError outstanding
+                                , queue = queue
+                                }
+              }
+            , Cmd.none
+            )
 
         Nop ->
             nop
@@ -317,14 +347,14 @@ enqueueAll updates model =
             let
                 ( newPending, cmd ) =
                     case ( model.pending, updates ) of
-                        ( Nothing, [] ) ->
-                            ( Nothing, Cmd.none )
+                        ( PendingIdle, [] ) ->
+                            ( PendingIdle, Cmd.none )
 
-                        ( Nothing, _ ) ->
-                            ( Just { current = updates, queue = [] }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update updates } ApiResponse )
+                        ( PendingIdle, _ ) ->
+                            ( Pending { current = PendingOutstanding updates, queue = [] }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update updates } ApiResponse )
 
-                        ( Just pending, _ ) ->
-                            ( Just { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
+                        ( Pending pending, _ ) ->
+                            ( Pending { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
             in
             ( { model | timerSet = Just (List.foldl Api.applyUpdate timerSet updates), pending = newPending }, cmd )
 
