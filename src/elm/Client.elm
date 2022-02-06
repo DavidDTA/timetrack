@@ -376,7 +376,7 @@ maybeInitialize { now, zone } =
 
 
 view model =
-    { title = "Timetrack"
+    { title = strings.appTitle
     , body =
         [ Html.Styled.toUnstyled
             (Html.Styled.div
@@ -446,72 +446,23 @@ viewBody model =
 
 viewErrors { errors } =
     errors
-        |> List.map
-            (\error ->
-                case error of
-                    TimeZoneError tzError ->
-                        "Timezone error: "
-                            ++ (case tzError of
-                                    TimeZone.NoZoneName ->
-                                        "No zone name!"
-
-                                    TimeZone.NoDataForZoneName zonename ->
-                                        "No data for zone " ++ zonename ++ "!"
-                               )
-
-                    ApiError apiError ->
-                        case apiError of
-                            Functions.BadUrl url ->
-                                "Bad url: " ++ url
-
-                            Functions.Timeout ->
-                                "Timeout"
-
-                            Functions.NetworkError ->
-                                "Network error"
-
-                            Functions.HttpError { statusCode } _ ->
-                                if statusCode >= 400 && statusCode < 500 then
-                                    "HTTP client error"
-
-                                else if statusCode >= 500 && statusCode < 600 then
-                                    "HTTP server error"
-
-                                else
-                                    "HTTP error"
-
-                            Functions.MalformedJson _ ->
-                                "Malformed json"
-
-                            Functions.SerializationError serializationError ->
-                                "Serialization error: "
-                                    ++ (case serializationError of
-                                            Serialize.CustomError _ ->
-                                                "Custom error"
-
-                                            Serialize.DataCorrupted ->
-                                                "Data corrupted"
-
-                                            Serialize.SerializerOutOfDate ->
-                                                "Serializer out of date"
-                                       )
-            )
+        |> List.map strings.error
         |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
 
 
 viewLoading =
-    [ Html.Styled.text "Loading..." ]
+    [ Html.Styled.text strings.loading ]
 
 
 viewAuthentication =
-    [ Html.Styled.text "Enter username:"
+    [ Html.Styled.text (strings.enterUsernamePrompt ++ ": ")
     , Html.Styled.input [ Html.Styled.Events.onInput UsernameEdit ] []
-    , Html.Styled.button [ Html.Styled.Events.onClick UsernameSubmit ] [ Html.Styled.text "Submit" ]
+    , Html.Styled.button [ Html.Styled.Events.onClick UsernameSubmit ] [ Html.Styled.text strings.submitUsername ]
     ]
 
 
 viewPaused =
-    Html.Styled.text "paused"
+    Html.Styled.text strings.paused
 
 
 viewTimers { now, zone } timerSet { clearConfirmation, edit } =
@@ -537,15 +488,15 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
             viewTimer now edit timerSet currentTimerId
     ]
         ++ List.map (viewTimer now edit timerSet) timers
-        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text "start new" ]
+        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text strings.startNewTimer ]
            ]
         ++ (case clearConfirmation of
                 ClearConfirmationHidden ->
-                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersInitiate ] [ Html.Styled.text "clear" ] ]
+                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersInitiate ] [ Html.Styled.text strings.clearTimers ] ]
 
                 ClearConfirmationShown ->
-                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersCancel ] [ Html.Styled.text "cancel" ]
-                    , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text "Are you sure?" ]
+                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersCancel ] [ Html.Styled.text strings.clearTimersCancel ]
+                    , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text strings.clearTimersConfirm ]
                     ]
            )
         ++ (case edit of
@@ -576,7 +527,7 @@ viewHistoryItem zone timerSet ( timer, start ) =
         , Html.Styled.text " "
         , timer
             |> Maybe.map (\id -> TimerSet.get id timerSet)
-            |> Maybe.Extra.unwrap "Timer Paused" (Maybe.Extra.unwrap "Unknown" .name)
+            |> Maybe.Extra.unwrap strings.paused (Maybe.Extra.unwrap strings.unknownTimer .name)
             |> Html.Styled.text
         ]
 
@@ -636,11 +587,11 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
             |> Html.Styled.text
         ]
     , Html.Styled.div []
-        [ Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = -1 }) ] [ Html.Styled.text "prev" ]
-        , Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Html.Styled.text "next" ]
+        [ Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = -1 }) ] [ Html.Styled.text strings.previous ]
+        , Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Html.Styled.text strings.next ]
         ]
     ]
-        ++ [ Html.Styled.h2 [] [ Html.Styled.text "Totals" ] ]
+        ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.totals ] ]
         ++ List.map
             (\timerId ->
                 viewTotalLine
@@ -653,15 +604,15 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
                     ((==) (Just timerId))
             )
             timers
-        ++ [ viewTotalLine "A" (actCatPred .activity TimerSet.Active)
-           , viewTotalLine "R" (actCatPred .activity TimerSet.Reactive)
-           , viewTotalLine "P" (actCatPred .activity TimerSet.Proactive)
-           , viewTotalLine "O" (actCatPred .category TimerSet.Operational)
-           , viewTotalLine "H" (actCatPred .category TimerSet.Helpful)
-           , viewTotalLine "P" (actCatPred .category TimerSet.Productive)
-           , viewTotalLine "Total" Maybe.Extra.isJust
+        ++ [ viewTotalLine strings.abbreviationActive (actCatPred .activity TimerSet.Active)
+           , viewTotalLine strings.abbreviationReactive (actCatPred .activity TimerSet.Reactive)
+           , viewTotalLine strings.abbreviationProactive (actCatPred .activity TimerSet.Proactive)
+           , viewTotalLine strings.abbreviationOperational (actCatPred .category TimerSet.Operational)
+           , viewTotalLine strings.abbreviationHelpful (actCatPred .category TimerSet.Helpful)
+           , viewTotalLine strings.abbreviationProductive (actCatPred .category TimerSet.Productive)
+           , viewTotalLine strings.total Maybe.Extra.isJust
            ]
-        ++ [ Html.Styled.h2 [] [ Html.Styled.text "History" ] ]
+        ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.history ] ]
         ++ List.map (viewHistoryItem zone timerSet) dailyHistory
 
 
@@ -710,7 +661,7 @@ viewTimer now edit timerSet id =
     in
     case TimerSet.get id timerSet of
         Nothing ->
-            Html.Styled.div [] [ Html.Styled.text "Unknown Timer" ]
+            Html.Styled.div [] [ Html.Styled.text strings.unknownTimer ]
 
         Just { name, activity, category } ->
             Html.Styled.div []
@@ -733,23 +684,23 @@ viewTimer now edit timerSet id =
                     ]
                     []
                 , Html.Styled.text " "
-                , viewActCatToggle TimerToggleActivity id activity TimerSet.Active "A"
-                , viewActCatToggle TimerToggleActivity id activity TimerSet.Reactive "R"
-                , viewActCatToggle TimerToggleActivity id activity TimerSet.Proactive "P"
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Active strings.abbreviationActive
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Reactive strings.abbreviationReactive
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Proactive strings.abbreviationProactive
                 , Html.Styled.text " "
-                , viewActCatToggle TimerToggleCategory id category TimerSet.Operational "O"
-                , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful "H"
-                , viewActCatToggle TimerToggleCategory id category TimerSet.Productive "P"
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Operational strings.abbreviationOperational
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful strings.abbreviationHelpful
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Productive strings.abbreviationProductive
                 , Html.Styled.text " "
                 , Html.Styled.button
                     [ Html.Styled.Events.onClick (TimerToggleRunning id)
                     ]
                     [ Html.Styled.text
                         (if running then
-                            "Stop"
+                            strings.stop
 
                          else
-                            "Start"
+                            strings.start
                         )
                     ]
                 ]
@@ -841,7 +792,79 @@ colors =
 
 
 strings =
-    { unnamedTimer = "Unnamed Timer"
+    { appTitle = "Timetrack"
+    , unnamedTimer = "Unnamed Timer"
+    , enterUsernamePrompt = "Enter username"
+    , submitUsername = "Submit"
+    , loading = "Loading..."
+    , paused = "Paused"
+    , unknownTimer = "Unknown Timer"
+    , previous = "prev"
+    , next = "next"
+    , totals = "Totals"
+    , abbreviationActive = "A"
+    , abbreviationReactive = "R"
+    , abbreviationProactive = "P"
+    , abbreviationOperational = "O"
+    , abbreviationHelpful = "H"
+    , abbreviationProductive = "P"
+    , total = "Total"
+    , history = "History"
+    , stop = "Stop"
+    , start = "Start"
+    , startNewTimer = "start new timer"
+    , clearTimers = "clear"
+    , clearTimersCancel = "cancel"
+    , clearTimersConfirm = "Are you sure?"
+    , error =
+        \error ->
+            case error of
+                TimeZoneError tzError ->
+                    "Timezone error: "
+                        ++ (case tzError of
+                                TimeZone.NoZoneName ->
+                                    "No zone name!"
+
+                                TimeZone.NoDataForZoneName zonename ->
+                                    "No data for zone " ++ zonename ++ "!"
+                           )
+
+                ApiError apiError ->
+                    case apiError of
+                        Functions.BadUrl url ->
+                            "Bad url: " ++ url
+
+                        Functions.Timeout ->
+                            "Timeout"
+
+                        Functions.NetworkError ->
+                            "Network error"
+
+                        Functions.HttpError { statusCode } _ ->
+                            if statusCode >= 400 && statusCode < 500 then
+                                "HTTP client error"
+
+                            else if statusCode >= 500 && statusCode < 600 then
+                                "HTTP server error"
+
+                            else
+                                "HTTP error"
+
+                        Functions.MalformedJson _ ->
+                            "Malformed json"
+
+                        Functions.SerializationError serializationError ->
+                            "Serialization error: "
+                                ++ (case serializationError of
+                                        Serialize.CustomError _ ->
+                                            "Custom error"
+
+                                        Serialize.DataCorrupted ->
+                                            "Data corrupted"
+
+                                        Serialize.SerializerOutOfDate ->
+                                            "Serializer out of date"
+                                   )
     }
 
 
