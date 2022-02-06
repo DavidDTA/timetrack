@@ -444,10 +444,71 @@ viewBody model =
            )
 
 
-viewErrors { errors } =
-    errors
-        |> List.map strings.error
-        |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
+viewErrors { errors, pending } =
+    let
+        cellProperties =
+            [ Css.property "grid-row" "1"
+            , Css.property "grid-column" "1"
+            ]
+
+        ( waiting, retryable ) =
+            case pending of
+                PendingIdle ->
+                    ( False, False )
+
+                Pending { current } ->
+                    case current of
+                        PendingOutstanding _ ->
+                            ( True, False )
+
+                        PendingError _ ->
+                            ( False, True )
+    in
+    [ Html.Styled.div
+        [ Html.Styled.Attributes.css
+            [ Css.property "display" "grid"
+            , Css.width (Css.px 24)
+            , Css.height (Css.px 24)
+            , Css.fontSize (Css.px 24)
+            , Css.fontWeight Css.bold
+            , Css.lineHeight (Css.px 24)
+            , Css.margin Css.auto
+            ]
+        ]
+        [ Html.Styled.div
+            [ Html.Styled.Attributes.css
+                (cellProperties
+                    ++ [ Css.opacity
+                            (if waiting then
+                                Css.num 100
+
+                             else
+                                Css.num 0
+                            )
+                       ]
+                )
+            ]
+            [ Html.Styled.text "⟳" ]
+        , Html.Styled.div
+            [ Html.Styled.Attributes.css
+                (cellProperties
+                    ++ [ Css.opacity
+                            (if retryable then
+                                Css.num 100
+
+                             else
+                                Css.num 0
+                            )
+                       ]
+                )
+            ]
+            [ Html.Styled.text "↺" ]
+        ]
+    ]
+        ++ (errors
+                |> List.map strings.error
+                |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
+           )
 
 
 viewLoading =
