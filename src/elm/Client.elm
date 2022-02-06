@@ -47,16 +47,20 @@ type alias Model =
     , username : Username
     , errors : List Error
     , historySelectedDate : Maybe Date.Date
-    , timerSet : Maybe TimerSet.TimerSet
-    , pending : Pending
+    , remote : Remote
+    , pending : Pending Remote
     , clearConfirmation : ClearConfirmation
     , edit : Maybe Edit
     }
 
 
-type Pending
+type alias Remote =
+    { timerSet : Maybe TimerSet.TimerSet }
+
+
+type Pending remote
     = PendingIdle
-    | Pending { current : PendingCurrent, queue : List Api.Update }
+    | Pending { current : PendingCurrent, queue : List Api.Update, base : remote }
 
 
 type PendingCurrent
@@ -121,7 +125,7 @@ init _ _ _ =
       , username = EditingUsername ""
       , errors = []
       , historySelectedDate = Nothing
-      , timerSet = Nothing
+      , remote = { timerSet = Nothing }
       , pending = PendingIdle
       , clearConfirmation = ClearConfirmationHidden
       , edit = Nothing
@@ -137,6 +141,7 @@ sub _ =
         ]
 
 
+update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     let
         nop =
@@ -153,7 +158,7 @@ update msg model =
                                 PendingIdle ->
                                     PendingIdle
 
-                                Pending { current, queue } ->
+                                Pending { current, queue, base } ->
                                     Pending
                                         { current =
                                             case current of
@@ -163,6 +168,7 @@ update msg model =
                                                 PendingError outstanding ->
                                                     PendingError outstanding
                                         , queue = queue
+                                        , base = base
                                         }
                       }
                     , Cmd.none
@@ -180,7 +186,7 @@ update msg model =
                                         Pending { queue } ->
                                             List.reverse queue
                             in
-                            { model | timerSet = Just serverTimerSet, pending = PendingIdle }
+                            { model | remote = { timerSet = Just serverTimerSet }, pending = PendingIdle }
                                 |> enqueueAll newQueue
 
         ApiRetry ->
@@ -188,7 +194,7 @@ update msg model =
                 PendingIdle ->
                     ( model, Cmd.none )
 
-                Pending { current, queue } ->
+                Pending { current, queue, base } ->
                     case current of
                         PendingOutstanding _ ->
                             ( model, Cmd.none )
@@ -196,7 +202,7 @@ update msg model =
                         PendingError failed ->
                             let
                                 ( model1, cmd1 ) =
-                                    enqueueAll failed { model | pending = PendingIdle }
+                                    enqueueAll failed { model | remote = base, pending = PendingIdle }
 
                                 ( model2, cmd2 ) =
                                     enqueueAll queue model1
@@ -292,7 +298,7 @@ update msg model =
             ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
 
         TimerToggleActivity timerId activity ->
-            case model.timerSet of
+            case model.remote.timerSet of
                 Just timerSet ->
                     let
                         currentActivity =
@@ -312,7 +318,7 @@ update msg model =
                     nop
 
         TimerToggleCategory timerId category ->
-            case model.timerSet of
+            case model.remote.timerSet of
                 Just timerSet ->
                     let
                         currentCategory =
@@ -332,7 +338,7 @@ update msg model =
                     nop
 
         TimerToggleRunning id ->
-            case ( model.time, model.timerSet ) of
+            case ( model.time, model.remote.timerSet ) of
                 ( TimeInitialized { now }, Just timerSet ) ->
                     let
                         currentId =
@@ -362,8 +368,20 @@ update msg model =
                     ( model, Cmd.none )
 
 
+applyUpdate apiUpdate remote =
+    { remote
+        | timerSet =
+            case remote.timerSet of
+                Nothing ->
+                    Nothing
+
+                Just timerSet ->
+                    Just (Api.applyUpdate apiUpdate timerSet)
+    }
+
+
 enqueueAll updates model =
-    case ( model.username, model.timerSet ) of
+    case ( model.username, model.remote.timerSet ) of
         ( SelectedUsername username, Just timerSet ) ->
             let
                 ( newPending, cmd ) =
@@ -372,12 +390,12 @@ enqueueAll updates model =
                             ( PendingIdle, Cmd.none )
 
                         ( PendingIdle, _ ) ->
-                            ( Pending { current = PendingOutstanding updates, queue = [] }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update updates } ApiResponse )
+                            ( Pending { current = PendingOutstanding updates, queue = [], base = model.remote }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update updates } ApiResponse )
 
                         ( Pending pending, _ ) ->
                             ( Pending { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
             in
-            ( { model | timerSet = Just (List.foldl Api.applyUpdate timerSet updates), pending = newPending }, cmd )
+            ( { model | remote = List.foldl applyUpdate model.remote updates, pending = newPending }, cmd )
 
         _ ->
             ( model, Cmd.none )
@@ -417,7 +435,7 @@ view model =
     }
 
 
-globalCss { timerSet, time } =
+globalCss { remote, time } =
     Css.Global.global
         [ Css.Global.everything
             [ Css.margin Css.zero
@@ -428,7 +446,7 @@ globalCss { timerSet, time } =
         , Css.Global.html
             [ Css.minHeight (Css.pct 100) -- Without this, background color transitions for the html don't happen properly in the area not covered by the body
             , Css.backgroundColor
-                (case timerSet of
+                (case remote.timerSet of
                     Nothing ->
                         colors.paused
 
@@ -456,7 +474,7 @@ viewBody model =
                     viewAuthentication
 
                 SelectedUsername _ ->
-                    case ( model.time, model.timerSet ) of
+                    case ( model.time, model.remote.timerSet ) of
                         ( TimeInitialized time, Just timerSet ) ->
                             viewTimers time timerSet model ++ viewHistory time timerSet model
 
