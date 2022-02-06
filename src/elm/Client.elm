@@ -97,10 +97,10 @@ type Error
 type Msg
     = ApiResponse (Result Functions.Error Api.Response)
     | ApiRetry
-    | Error Error
     | Nop
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
+    | UpdateZoneError TimeZone.Error
     | AddTimer
     | ClearTimersInitiate
     | ClearTimersCancel
@@ -127,7 +127,7 @@ init _ _ _ =
       , edit = Nothing
       }
     , TimeZone.getZone
-        |> Task.attempt (Result.Extra.unpack (TimeZoneError >> Error) (Tuple.second >> UpdateZone))
+        |> Task.attempt (Result.Extra.unpack UpdateZoneError (Tuple.second >> UpdateZone))
     )
 
 
@@ -146,7 +146,27 @@ update msg model =
         ApiResponse result ->
             case result of
                 Result.Err err ->
-                    update (Error (ApiError err)) model
+                    ( { model
+                        | errors = ApiError err :: model.errors
+                        , pending =
+                            case model.pending of
+                                PendingIdle ->
+                                    PendingIdle
+
+                                Pending { current, queue } ->
+                                    Pending
+                                        { current =
+                                            case current of
+                                                PendingOutstanding outstanding ->
+                                                    PendingError outstanding
+
+                                                PendingError outstanding ->
+                                                    PendingError outstanding
+                                        , queue = queue
+                                        }
+                      }
+                    , Cmd.none
+                    )
 
                 Result.Ok response ->
                     case response of
@@ -183,29 +203,6 @@ update msg model =
                             in
                             ( model2, Cmd.batch [ cmd1, cmd2 ] )
 
-        Error error ->
-            ( { model
-                | errors = model.errors ++ [ error ]
-                , pending =
-                    case model.pending of
-                        PendingIdle ->
-                            PendingIdle
-
-                        Pending { current, queue } ->
-                            Pending
-                                { current =
-                                    case current of
-                                        PendingOutstanding outstanding ->
-                                            PendingError outstanding
-
-                                        PendingError outstanding ->
-                                            PendingError outstanding
-                                , queue = queue
-                                }
-              }
-            , Cmd.none
-            )
-
         Nop ->
             nop
 
@@ -234,6 +231,9 @@ update msg model =
               }
             , Cmd.none
             )
+
+        UpdateZoneError err ->
+            ( { model | errors = TimeZoneError err :: model.errors }, Cmd.none )
 
         AddTimer ->
             case model.time of
