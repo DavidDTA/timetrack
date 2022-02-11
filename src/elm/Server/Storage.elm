@@ -6,6 +6,7 @@ import Task
 import Time
 import Timeline
 import TimerSet
+import Version
 
 
 timerSetCollection =
@@ -24,7 +25,7 @@ getTimerSet firestore username =
                 case error of
                     Firestore.Response { code } ->
                         if code == 404 then
-                            Task.succeed TimerSet.empty
+                            Task.succeed { version = Version.zero, value = TimerSet.empty }
 
                         else
                             Task.fail error
@@ -37,14 +38,14 @@ getTimerSet firestore username =
 updateTimerSet firestore username update =
     getTimerSet firestore username
         |> Task.andThen
-            (\value ->
+            (\{ version, value } ->
                 firestore
                     |> Firestore.root
                     |> Firestore.collection timerSetCollection
                     |> Firestore.document (pathSafe username)
                     |> Firestore.upsert
                         (Firestore.Codec.asDecoder timerSetCodec)
-                        (Firestore.Codec.asEncoder timerSetCodec (update value))
+                        (Firestore.Codec.asEncoder timerSetCodec { version = Version.increment version, value = update value })
                     |> Task.map .fields
             )
 
@@ -65,18 +66,25 @@ type alias TimerSetIntermediate =
     }
 
 
-timelineFromIntermediate timerNames timerActivities timerCategories timelineTimestamps timelineTimerIds =
-    TimerSet.create
-        (List.map3 TimerSet.Timer timerNames timerActivities timerCategories)
-        (List.map2 Tuple.pair timelineTimestamps timelineTimerIds |> Timeline.fromList)
+timelineFromIntermediate timerNames timerActivities timerCategories timelineTimestamps timelineTimerIds version =
+    { version = version
+    , value =
+        TimerSet.create
+            (List.map3 TimerSet.Timer timerNames timerActivities timerCategories)
+            (List.map2 Tuple.pair timelineTimestamps timelineTimerIds |> Timeline.fromList)
+    }
 
 
 timerSetCodec =
     let
-        timers timerSet =
-            timerSet
+        timers { value } =
+            value
                 |> TimerSet.listTimerIds
-                |> List.filterMap (\id -> TimerSet.get id timerSet)
+                |> List.filterMap (\id -> TimerSet.get id value)
+
+        timeline { value } =
+            TimerSet.history value
+                |> Timeline.toList
 
         listField fieldName listGetter fieldGetter codec =
             Firestore.Codec.optional fieldName (listGetter >> List.map fieldGetter) (Firestore.Codec.list codec) []
@@ -85,9 +93,14 @@ timerSetCodec =
         |> listField "timerNames" timers .name Firestore.Codec.string
         |> listField "timerActivities" timers .activity (Firestore.Codec.maybe activityCodec)
         |> listField "timerCategories" timers .category (Firestore.Codec.maybe categoryCodec)
-        |> listField "timelineTimestamps" (TimerSet.history >> Timeline.toList) Tuple.first Firestore.Codec.timestamp
-        |> listField "timelineTimerIds" (TimerSet.history >> Timeline.toList) Tuple.second (Firestore.Codec.maybe timerIdCodec)
+        |> listField "timelineTimestamps" timeline Tuple.first Firestore.Codec.timestamp
+        |> listField "timelineTimerIds" timeline Tuple.second (Firestore.Codec.maybe timerIdCodec)
+        |> Firestore.Codec.optional "version" .version versionCodec Version.zero
         |> Firestore.Codec.build
+
+
+versionCodec =
+    Firestore.Codec.map Version.fromRaw Version.toRaw Firestore.Codec.int
 
 
 timerIdCodec =

@@ -12,6 +12,7 @@ import Server.Storage
 import Task
 import Timeline
 import TimerSet
+import Version
 
 
 port requests : (( Json.Encode.Value, Json.Encode.Value ) -> msg) -> Sub msg
@@ -49,7 +50,7 @@ main =
 
 
 type RequestMsg
-    = GetTimerSet (Result Firestore.Error TimerSet.TimerSet)
+    = GetTimerSet (Result Firestore.Error { version : Version.Version, value : TimerSet.TimerSet })
 
 
 sharedInit flags =
@@ -119,8 +120,8 @@ requestUpdate msg model =
     case msg of
         GetTimerSet result ->
             case result of
-                Ok timerSet ->
-                    Functions.succeed (Api.Value timerSet)
+                Ok { value } ->
+                    Functions.succeed (Api.Value value)
 
                 Err error ->
                     Functions.fail (firestoreErrorToString error)
