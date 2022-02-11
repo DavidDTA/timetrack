@@ -176,7 +176,7 @@ update msg model =
 
                 Result.Ok response ->
                     case response of
-                        Api.Value serverTimerSet ->
+                        Api.Value { value } ->
                             let
                                 newQueue =
                                     case model.pending of
@@ -186,7 +186,7 @@ update msg model =
                                         Pending { queue } ->
                                             List.reverse queue
                             in
-                            { model | remote = { timerSet = Just serverTimerSet }, pending = PendingIdle }
+                            { model | remote = { timerSet = Just value }, pending = PendingIdle }
                                 |> enqueueAll newQueue
 
         ApiRetry ->

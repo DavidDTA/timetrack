@@ -11,6 +11,7 @@ import Serialize
 import Time
 import Timeline
 import TimerSet
+import Version
 
 
 
@@ -27,7 +28,7 @@ type Request
 
 
 type Response
-    = Value TimerSet.TimerSet
+    = Value { version : Version.Version, value : TimerSet.TimerSet }
 
 
 type Update
@@ -97,6 +98,13 @@ serializeRequestWithAuthentication =
         |> Serialize.finishRecord
 
 
+serializeVersioned serialize =
+    Serialize.record (\version value -> { version = version, value = value })
+        |> Serialize.field .version (Serialize.map Version.fromRaw Version.toRaw Serialize.int)
+        |> Serialize.field .value serialize
+        |> Serialize.finishRecord
+
+
 serializeRequest =
     Serialize.customType
         (\getEncoder updateEncoder value ->
@@ -119,7 +127,7 @@ serializeResponse =
                 Value timerSet ->
                     valueEncoder timerSet
         )
-        |> Serialize.variant1 Value serializeTimerSet
+        |> Serialize.variant1 Value (serializeVersioned serializeTimerSet)
         |> Serialize.finishCustomType
 
 

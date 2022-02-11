@@ -120,7 +120,7 @@ requestUpdate msg model =
     case msg of
         GetTimerSet result ->
             case result of
-                Ok { value } ->
+                Ok value ->
                     Functions.succeed (Api.Value value)
 
                 Err error ->
