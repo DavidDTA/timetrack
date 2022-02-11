@@ -24,7 +24,7 @@ type alias RequestWithAuthentication =
 
 type Request
     = Get
-    | Update (List Update)
+    | Update Version.Version (List Update)
 
 
 type Response
@@ -98,9 +98,13 @@ serializeRequestWithAuthentication =
         |> Serialize.finishRecord
 
 
+serializeVersion =
+    Serialize.map Version.fromRaw Version.toRaw Serialize.int
+
+
 serializeVersioned serialize =
     Serialize.record (\version value -> { version = version, value = value })
-        |> Serialize.field .version (Serialize.map Version.fromRaw Version.toRaw Serialize.int)
+        |> Serialize.field .version serializeVersion
         |> Serialize.field .value serialize
         |> Serialize.finishRecord
 
@@ -112,11 +116,11 @@ serializeRequest =
                 Get ->
                     getEncoder
 
-                Update updates ->
-                    updateEncoder updates
+                Update version updates ->
+                    updateEncoder version updates
         )
         |> Serialize.variant0 Get
-        |> Serialize.variant1 Update (Serialize.list serializeUpdate)
+        |> Serialize.variant2 Update serializeVersion (Serialize.list serializeUpdate)
         |> Serialize.finishCustomType
 
 

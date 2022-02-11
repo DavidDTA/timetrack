@@ -29,6 +29,7 @@ import TimeZone
 import Timeline
 import TimerSet
 import Url
+import Version
 
 
 main =
@@ -55,7 +56,7 @@ type alias Model =
 
 
 type alias Remote =
-    { timerSet : Maybe TimerSet.TimerSet }
+    { timerSet : Maybe { version : Version.Version, value : TimerSet.TimerSet } }
 
 
 type Pending remote
@@ -176,7 +177,7 @@ update msg model =
 
                 Result.Ok response ->
                     case response of
-                        Api.Value { value } ->
+                        Api.Value value ->
                             let
                                 newQueue =
                                     case model.pending of
@@ -302,7 +303,7 @@ update msg model =
                 Just timerSet ->
                     let
                         currentActivity =
-                            TimerSet.get timerId timerSet
+                            TimerSet.get timerId timerSet.value
                                 |> Maybe.andThen .activity
 
                         newActivity =
@@ -322,7 +323,7 @@ update msg model =
                 Just timerSet ->
                     let
                         currentCategory =
-                            TimerSet.get timerId timerSet
+                            TimerSet.get timerId timerSet.value
                                 |> Maybe.andThen .category
 
                         newCategory =
@@ -342,7 +343,7 @@ update msg model =
                 ( TimeInitialized { now }, Just timerSet ) ->
                     let
                         currentId =
-                            Timeline.at now (TimerSet.history timerSet)
+                            Timeline.at now (TimerSet.history timerSet.value)
 
                         newId =
                             if Just id == currentId then
@@ -376,13 +377,13 @@ applyUpdate apiUpdate remote =
                     Nothing
 
                 Just timerSet ->
-                    Just (Api.applyUpdate apiUpdate timerSet)
+                    Just { version = timerSet.version, value = Api.applyUpdate apiUpdate timerSet.value }
     }
 
 
 enqueueAll updates model =
     case ( model.username, model.remote.timerSet ) of
-        ( SelectedUsername username, Just timerSet ) ->
+        ( SelectedUsername username, Just { version } ) ->
             let
                 ( newPending, cmd ) =
                     case ( model.pending, updates ) of
@@ -390,7 +391,7 @@ enqueueAll updates model =
                             ( PendingIdle, Cmd.none )
 
                         ( PendingIdle, _ ) ->
-                            ( Pending { current = PendingOutstanding updates, queue = [], base = model.remote }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update updates } ApiResponse )
+                            ( Pending { current = PendingOutstanding updates, queue = [], base = model.remote }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update version updates } ApiResponse )
 
                         ( Pending pending, _ ) ->
                             ( Pending { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
@@ -450,13 +451,13 @@ globalCss { remote, time } =
                     Nothing ->
                         colors.paused
 
-                    Just timerSet_ ->
+                    Just timerSet ->
                         case time of
                             TimeUninitialized _ ->
                                 colors.paused
 
                             TimeInitialized { now } ->
-                                if Maybe.Extra.isJust (Timeline.at now (TimerSet.history timerSet_)) then
+                                if Maybe.Extra.isJust (Timeline.at now (TimerSet.history timerSet.value)) then
                                     colors.running
 
                                 else
@@ -476,7 +477,7 @@ viewBody model =
                 SelectedUsername _ ->
                     case ( model.time, model.remote.timerSet ) of
                         ( TimeInitialized time, Just timerSet ) ->
-                            viewTimers time timerSet model ++ viewHistory time timerSet model
+                            viewTimers time timerSet.value model ++ viewHistory time timerSet.value model
 
                         _ ->
                             viewLoading
