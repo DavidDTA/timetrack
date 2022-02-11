@@ -504,7 +504,8 @@ viewErrors { errors, pending } =
                             ( False, True )
     in
     [ Html.Styled.div
-        [ Html.Styled.Attributes.css
+        [ Html.Styled.Events.onClick ApiRetry
+        , Html.Styled.Attributes.css
             [ Css.property "display" "grid"
             , Css.width (Css.px 24)
             , Css.height (Css.px 24)
@@ -512,6 +513,13 @@ viewErrors { errors, pending } =
             , Css.fontWeight Css.bold
             , Css.lineHeight (Css.px 24)
             , Css.margin Css.auto
+            , Css.cursor
+                (if retryable then
+                    Css.pointer
+
+                 else
+                    Css.default
+                )
             ]
         ]
         [ Html.Styled.div
@@ -529,8 +537,7 @@ viewErrors { errors, pending } =
             ]
             [ Html.Styled.text "⟳" ]
         , Html.Styled.div
-            [ Html.Styled.Events.onClick ApiRetry
-            , Html.Styled.Attributes.css
+            [ Html.Styled.Attributes.css
                 (cellProperties
                     ++ [ Css.opacity
                             (if retryable then
