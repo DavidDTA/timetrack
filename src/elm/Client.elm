@@ -497,6 +497,7 @@ viewErrors forceLoading { errors, pending } =
         cellProperties =
             [ Css.property "grid-row" "1"
             , Css.property "grid-column" "1"
+            , Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
             ]
 
         loadingState =
