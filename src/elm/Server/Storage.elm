@@ -52,9 +52,16 @@ updateTimerSet firestore username update =
 
 pathSafe segment =
     segment
-        |> String.replace "/" "?"
-        |> String.replace "." "?"
-        |> String.replace "_" "?"
+        |> String.replace "/" "-"
+        |> String.replace "." "-"
+        |> String.replace "_" "-"
+        |> (\string ->
+                if string == "" then
+                    "-"
+
+                else
+                    string
+           )
 
 
 type alias TimerSetIntermediate =
