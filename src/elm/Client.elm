@@ -548,7 +548,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "⟳" ]
+            [ Html.Styled.text "\u{27F3}" ]
         , Html.Styled.div
             [ Html.Styled.Attributes.css
                 (cellProperties
@@ -562,7 +562,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "↺" ]
+            [ Html.Styled.text "\u{21BA}" ]
         ]
     ]
         ++ (errors
