@@ -951,13 +951,13 @@ strings =
 
                         Functions.HttpError { statusCode } _ ->
                             if statusCode >= 400 && statusCode < 500 then
-                                "HTTP client error"
+                                "HTTP client error: " ++ String.fromInt statusCode
 
                             else if statusCode >= 500 && statusCode < 600 then
-                                "HTTP server error"
+                                "HTTP server error: " ++ String.fromInt statusCode
 
                             else
-                                "HTTP error"
+                                "HTTP error: " ++ String.fromInt statusCode
 
                         Functions.MalformedJson _ ->
                             "Malformed json"
