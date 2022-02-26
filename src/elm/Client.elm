@@ -120,10 +120,13 @@ type Msg
     | UsernameSubmit
 
 
-init : () -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
-init _ _ _ =
+init : { localStorage : Json.Decode.Value } -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
+init { localStorage } _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
-      , username = EditingUsername ""
+      , username =
+            Json.Decode.decodeValue (Json.Decode.field "username" Json.Decode.string) localStorage
+                |> Result.map SelectedUsername
+                |> Result.withDefault (EditingUsername "")
       , errors = []
       , historySelectedDate = Nothing
       , remote = { timerSet = Nothing }

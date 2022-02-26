@@ -3,7 +3,11 @@
     <script src="/-/src.js"></script>
     <script>
 (function() {
-  Elm.Client.init();
+  Elm.Client.init({
+    flags: {
+      'localStorage': localStorage,
+    }
+  });
 })();
     </script>
   </body>
