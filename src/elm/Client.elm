@@ -526,6 +526,7 @@ viewErrors forceLoading { errors, pending } =
             , Css.fontWeight Css.bold
             , Css.lineHeight (Css.px 24)
             , Css.margin Css.auto
+            , Css.textAlign Css.center
             , Css.cursor
                 (if loadingState == Retryable then
                     Css.pointer
@@ -548,7 +549,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "\u{27F3}" ]
+            [ Html.Styled.text "⭮" ]
         , Html.Styled.div
             [ Html.Styled.Attributes.css
                 (cellProperties
@@ -562,7 +563,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "\u{21BA}" ]
+            [ Html.Styled.text "⭯" ]
         ]
     ]
         ++ (errors
