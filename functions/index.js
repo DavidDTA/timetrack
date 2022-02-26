@@ -5,7 +5,7 @@ const src = require("./src");
 var elm = src.Elm.Server.init({
   flags: {
     'firebaseProjectId': functions.firebaseConfig().projectId,
-    'firestoreHostPortOverride': process.env.FIRESTORE_EMULATOR_HOST,
+    'firestoreHostPortOverride': process.env.FIRESTORE_EMULATOR_HOST || null,
   }
 });
 elm.ports.responses.subscribe(function(params) {
