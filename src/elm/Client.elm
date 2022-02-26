@@ -1,4 +1,4 @@
-module Client exposing (main)
+port module Client exposing (main)
 
 import Api
 import Browser
@@ -30,6 +30,9 @@ import Timeline
 import TimerSet
 import Url
 import Version
+
+
+port localStorageWrites : ( String, String ) -> Cmd msg
 
 
 main =
@@ -124,7 +127,7 @@ init : { localStorage : Json.Decode.Value } -> Url.Url -> Browser.Navigation.Key
 init { localStorage } _ _ =
     let
         username =
-            Json.Decode.decodeValue (Json.Decode.field "username" Json.Decode.string) localStorage
+            Json.Decode.decodeValue (Json.Decode.field localStorageKeys.username Json.Decode.string) localStorage
                 |> Result.map SelectedUsername
                 |> Result.withDefault (EditingUsername "")
     in
@@ -378,7 +381,10 @@ update msg model =
             case model.username of
                 EditingUsername username ->
                     ( { model | username = SelectedUsername username }
-                    , fetchInitialState username
+                    , Cmd.batch
+                        [ fetchInitialState username
+                        , localStorageWrites ( localStorageKeys.username, username )
+                        ]
                     )
 
                 SelectedUsername _ ->
@@ -1008,4 +1014,9 @@ strings =
 
 durations =
     { transition = Duration.milliseconds 150
+    }
+
+
+localStorageKeys =
+    { username = "username"
     }

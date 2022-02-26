@@ -3,10 +3,13 @@
     <script src="/-/src.js"></script>
     <script>
 (function() {
-  Elm.Client.init({
+  var app = Elm.Client.init({
     flags: {
       'localStorage': localStorage,
     }
+  });
+  app.ports.localStorageWrites.subscribe(function([key, value]) {
+    localStorage[key] = value;
   });
 })();
     </script>
