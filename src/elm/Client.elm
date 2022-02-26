@@ -469,40 +469,52 @@ globalCss { remote, time } =
 
 
 viewBody model =
-    viewErrors model
-        ++ (case model.username of
+    let
+        ( forceLoading, body ) =
+            case model.username of
                 EditingUsername _ ->
-                    viewAuthentication
+                    ( False, viewAuthentication )
 
                 SelectedUsername _ ->
                     case ( model.time, model.remote.timerSet ) of
                         ( TimeInitialized time, Just timerSet ) ->
-                            viewTimers time timerSet.value model ++ viewHistory time timerSet.value model
+                            ( False, viewTimers time timerSet.value model ++ viewHistory time timerSet.value model )
 
                         _ ->
-                            viewLoading
-           )
+                            ( True, [] )
+    in
+    viewErrors forceLoading model ++ body
 
 
-viewErrors { errors, pending } =
+type LoadingState
+    = Waiting
+    | Retryable
+    | Idle
+
+
+viewErrors forceLoading { errors, pending } =
     let
         cellProperties =
             [ Css.property "grid-row" "1"
             , Css.property "grid-column" "1"
             ]
 
-        ( waiting, retryable ) =
-            case pending of
-                PendingIdle ->
-                    ( False, False )
+        loadingState =
+            if forceLoading then
+                Waiting
 
-                Pending { current } ->
-                    case current of
-                        PendingOutstanding _ ->
-                            ( True, False )
+            else
+                case pending of
+                    PendingIdle ->
+                        Idle
 
-                        PendingError _ ->
-                            ( False, True )
+                    Pending { current } ->
+                        case current of
+                            PendingOutstanding _ ->
+                                Waiting
+
+                            PendingError _ ->
+                                Retryable
     in
     [ Html.Styled.div
         [ Html.Styled.Events.onClick ApiRetry
@@ -515,7 +527,7 @@ viewErrors { errors, pending } =
             , Css.lineHeight (Css.px 24)
             , Css.margin Css.auto
             , Css.cursor
-                (if retryable then
+                (if loadingState == Retryable then
                     Css.pointer
 
                  else
@@ -527,7 +539,7 @@ viewErrors { errors, pending } =
             [ Html.Styled.Attributes.css
                 (cellProperties
                     ++ [ Css.opacity
-                            (if waiting then
+                            (if loadingState == Waiting then
                                 Css.num 100
 
                              else
@@ -541,7 +553,7 @@ viewErrors { errors, pending } =
             [ Html.Styled.Attributes.css
                 (cellProperties
                     ++ [ Css.opacity
-                            (if retryable then
+                            (if loadingState == Retryable then
                                 Css.num 100
 
                              else
@@ -557,10 +569,6 @@ viewErrors { errors, pending } =
                 |> List.map strings.error
                 |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
            )
-
-
-viewLoading =
-    [ Html.Styled.text strings.loading ]
 
 
 viewAuthentication =
@@ -905,7 +913,6 @@ strings =
     , unnamedTimer = "Unnamed Timer"
     , enterUsernamePrompt = "Enter username"
     , submitUsername = "Submit"
-    , loading = "Loading..."
     , paused = "Paused"
     , unknownTimer = "Unknown Timer"
     , previous = "prev"
