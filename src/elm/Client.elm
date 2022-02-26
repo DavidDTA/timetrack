@@ -122,11 +122,14 @@ type Msg
 
 init : { localStorage : Json.Decode.Value } -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init { localStorage } _ _ =
-    ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
-      , username =
+    let
+        username =
             Json.Decode.decodeValue (Json.Decode.field "username" Json.Decode.string) localStorage
                 |> Result.map SelectedUsername
                 |> Result.withDefault (EditingUsername "")
+    in
+    ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
+      , username = username
       , errors = []
       , historySelectedDate = Nothing
       , remote = { timerSet = Nothing }
@@ -134,8 +137,16 @@ init { localStorage } _ _ =
       , clearConfirmation = ClearConfirmationHidden
       , edit = Nothing
       }
-    , TimeZone.getZone
-        |> Task.attempt (Result.Extra.unpack UpdateZoneError (Tuple.second >> UpdateZone))
+    , Cmd.batch
+        [ TimeZone.getZone
+            |> Task.attempt (Result.Extra.unpack UpdateZoneError (Tuple.second >> UpdateZone))
+        , case username of
+            SelectedUsername raw ->
+                fetchInitialState raw
+
+            EditingUsername _ ->
+                Cmd.none
+        ]
     )
 
 
@@ -366,10 +377,16 @@ update msg model =
         UsernameSubmit ->
             case model.username of
                 EditingUsername username ->
-                    ( { model | username = SelectedUsername username }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Get } ApiResponse )
+                    ( { model | username = SelectedUsername username }
+                    , fetchInitialState username
+                    )
 
                 SelectedUsername _ ->
                     ( model, Cmd.none )
+
+
+fetchInitialState username =
+    Functions.send Api.endpoint { usernameByFiat = username, request = Api.Get } ApiResponse
 
 
 applyUpdate apiUpdate remote =
