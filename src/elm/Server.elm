@@ -21,6 +21,9 @@ port requests : (( Json.Encode.Value, Json.Encode.Value ) -> msg) -> Sub msg
 port responses : ( Json.Encode.Value, Int, String ) -> Cmd msg
 
 
+port errors : String -> Cmd msg
+
+
 type alias Flags =
     { firebaseProjectId : String
     , firestoreHostPortOverride : Maybe ( String, Int )
@@ -31,9 +34,6 @@ type alias Model =
     Maybe
         { firestore : Firestore.Firestore
         }
-
-
-port errors : String -> Cmd msg
 
 
 main =
