@@ -201,6 +201,6 @@ subscriptions { requestPort, requestSubscriptions } model =
     Sub.batch
         [ requestPort (\( request, responseToken ) -> NewRequest { request = request, responseToken = responseToken })
         , Dict.toList model.requests
-            |> List.map (\( id, requestModel ) -> Sub.map (\requestMsg -> Continuation { id = id, requestMsg = requestMsg }) (requestSubscriptions requestModel))
+            |> List.map (\( id, requestModel ) -> Sub.map (\requestMsg -> Continuation { id = id, requestMsg = requestMsg }) (requestSubscriptions model.sharedModel requestModel))
             |> Sub.batch
         ]

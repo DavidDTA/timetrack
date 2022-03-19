@@ -127,7 +127,7 @@ requestUpdate msg model =
                     Functions.fail (firestoreErrorToString error)
 
 
-requestSubscriptions model =
+requestSubscriptions sharedModel requestModel =
     Sub.none
 
 
