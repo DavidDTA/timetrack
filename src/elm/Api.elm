@@ -88,7 +88,7 @@ applyUpdate apiUpdate timerSet =
 
 
 endpoint =
-    Functions.codecEndpoint "/-/api" serializeRequestWithAuthentication serializeResponse
+    Functions.endpoint "/-/api" serializeRequestWithAuthentication serializeResponse
 
 
 serializeRequestWithAuthentication =

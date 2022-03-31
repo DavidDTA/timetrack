@@ -1,4 +1,4 @@
-module Functions exposing (Endpoint, Error(..), codecEndpoint, continue, fail, send, server, succeed)
+module Functions exposing (Endpoint, Error(..), continue, endpoint, fail, send, server, succeed)
 
 import Dict
 import Http
@@ -25,7 +25,7 @@ type Error
     | SerializationError (Serialize.Error Never)
 
 
-codecEndpoint path requestCodec responseCodec =
+endpoint path requestCodec responseCodec =
     Endpoint { path = path, requestCodec = requestCodec, responseCodec = responseCodec }
 
 
@@ -106,10 +106,10 @@ continue =
     Continue
 
 
-server ({ endpoint } as config) =
+server config =
     Platform.worker
         { init = init config
-        , update = update config endpoint
+        , update = update config config.endpoint
         , subscriptions = subscriptions config
         }
 
