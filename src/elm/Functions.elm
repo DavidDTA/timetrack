@@ -1,4 +1,4 @@
-module Functions exposing (Endpoint, Error(..), continue, endpoint, fail, send, server, succeed)
+module Functions exposing (Endpoint, SendError(..), continue, endpoint, fail, send, server, succeed)
 
 import Dict
 import Http
@@ -16,7 +16,7 @@ type Endpoint req res
         }
 
 
-type Error
+type SendError
     = BadUrl String
     | Timeout
     | NetworkError
@@ -29,7 +29,7 @@ endpoint path requestCodec responseCodec =
     Endpoint { path = path, requestCodec = requestCodec, responseCodec = responseCodec }
 
 
-send : Endpoint req res -> req -> (Result Error res -> msg) -> Cmd msg
+send : Endpoint req res -> req -> (Result SendError res -> msg) -> Cmd msg
 send (Endpoint { path, requestCodec, responseCodec }) request tag =
     Http.request
         { method = "POST"

@@ -99,11 +99,11 @@ type Edit
 
 type Error
     = TimeZoneError TimeZone.Error
-    | ApiError Functions.Error
+    | ApiError Functions.SendError
 
 
 type Msg
-    = ApiResponse (Result Functions.Error Api.Response)
+    = ApiResponse (Result Functions.SendError Api.Response)
     | ApiRetry
     | Nop
     | UpdateNow Time.Posix
