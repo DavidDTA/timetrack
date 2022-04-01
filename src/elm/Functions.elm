@@ -107,5 +107,7 @@ receive (Endpoint { path, requestCodec }) { request, response } =
         |> Result.mapError (always ReceiveError)
 
 
-respond (Endpoint { path, requestCodec, responseCodec }) =
-    Debug.todo ""
+respond : Endpoint req res -> res -> String
+respond (Endpoint { path, responseCodec }) response =
+    Serialize.encodeToJson responseCodec response
+        |> Json.Encode.encode 0

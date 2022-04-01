@@ -134,7 +134,7 @@ update msg model =
         GotTimerSet responseValue result ->
             case result of
                 Ok value ->
-                    ( model, Functions.respond Api.endpoint responses (Api.Value value) )
+                    ( model, responses ( responseValue, 200, Functions.respond Api.endpoint (Api.Value value) ) )
 
                 Err error ->
                     ( model, serverError responseValue (firestoreErrorToString error) )
