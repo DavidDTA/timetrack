@@ -29,8 +29,8 @@ endpoint path requestCodec responseCodec =
     Endpoint { path = path, requestCodec = requestCodec, responseCodec = responseCodec }
 
 
-send : Endpoint req res -> req -> (Result SendError res -> msg) -> Cmd msg
-send (Endpoint { path, requestCodec, responseCodec }) request tag =
+send : Endpoint req res -> (Result SendError res -> msg) -> req -> Cmd msg
+send (Endpoint { path, requestCodec, responseCodec }) tag request =
     Http.request
         { method = "POST"
         , headers = []

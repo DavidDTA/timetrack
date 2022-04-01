@@ -392,7 +392,8 @@ update msg model =
 
 
 fetchInitialState username =
-    Functions.send Api.endpoint { usernameByFiat = username, request = Api.Get } ApiResponse
+    { usernameByFiat = username, request = Api.Get }
+        |> Functions.send Api.endpoint ApiResponse
 
 
 applyUpdate apiUpdate remote =
@@ -417,7 +418,14 @@ enqueueAll updates model =
                             ( PendingIdle, Cmd.none )
 
                         ( PendingIdle, _ ) ->
-                            ( Pending { current = PendingOutstanding updates, queue = [], base = model.remote }, Functions.send Api.endpoint { usernameByFiat = username, request = Api.Update version updates } ApiResponse )
+                            ( Pending
+                                { current = PendingOutstanding updates
+                                , queue = []
+                                , base = model.remote
+                                }
+                            , { usernameByFiat = username, request = Api.Update version updates }
+                                |> Functions.send Api.endpoint ApiResponse
+                            )
 
                         ( Pending pending, _ ) ->
                             ( Pending { pending | queue = List.foldl (::) pending.queue updates }, Cmd.none )
