@@ -36,24 +36,20 @@ type alias Model =
         }
 
 
+type Msg
+    = NewRequest ( Json.Encode.Value, Json.Encode.Value )
+    | GotTimerSet Json.Encode.Value (Result Firestore.Error { version : Version.Version, value : TimerSet.TimerSet })
+
+
 main =
-    Functions.server
-        { sharedInit = sharedInit
-        , requestInit = requestInit
-        , requestUpdate = requestUpdate
-        , requestSubscriptions = requestSubscriptions
-        , requestPort = requests
-        , responsePort = responses
-        , errorPort = errors
-        , endpoint = Api.endpoint
+    Platform.worker
+        { init = init
+        , update = update
+        , subscriptions = subscriptions
         }
 
 
-type RequestMsg
-    = GetTimerSet (Result Firestore.Error { version : Version.Version, value : TimerSet.TimerSet })
-
-
-sharedInit flags =
+init flags =
     let
         result =
             Json.Decode.decodeValue
@@ -102,33 +98,50 @@ sharedInit flags =
             )
 
 
-requestInit sharedModel { usernameByFiat, request } =
-    case sharedModel of
-        Nothing ->
-            Functions.fail "server uninitialized"
-
-        Just { firestore } ->
-            case request of
-                Api.Get ->
-                    Functions.continue { cmd = Server.Storage.getTimerSet firestore usernameByFiat |> Task.attempt GetTimerSet, newRequestModel = () }
-
-                Api.Update version updates ->
-                    Functions.continue { cmd = Server.Storage.updateTimerSet firestore usernameByFiat (\timerSet -> List.foldl Api.applyUpdate timerSet updates) |> Task.attempt GetTimerSet, newRequestModel = () }
+serverError responseValue errorMessage =
+    Cmd.batch
+        [ responses ( responseValue, 500, "" )
+        , errors errorMessage
+        ]
 
 
-requestUpdate msg model =
+update msg model =
     case msg of
-        GetTimerSet result ->
+        NewRequest ( requestValue, responseValue ) ->
+            case model of
+                Nothing ->
+                    ( model, serverError responseValue "server uninitialized" )
+
+                Just { firestore } ->
+                    case Functions.receive Api.endpoint { request = requestValue, response = responseValue } of
+                        Result.Err err ->
+                            ( model, responses ( responseValue, 400, "" ) )
+
+                        Result.Ok { usernameByFiat, request } ->
+                            case request of
+                                Api.Get ->
+                                    ( model
+                                    , Server.Storage.getTimerSet firestore usernameByFiat
+                                        |> Task.attempt (GotTimerSet responseValue)
+                                    )
+
+                                Api.Update version updates ->
+                                    ( model
+                                    , Server.Storage.updateTimerSet firestore usernameByFiat (\timerSet -> List.foldl Api.applyUpdate timerSet updates)
+                                        |> Task.attempt (GotTimerSet responseValue)
+                                    )
+
+        GotTimerSet responseValue result ->
             case result of
                 Ok value ->
-                    Functions.succeed (Api.Value value)
+                    ( model, Functions.respond Api.endpoint responses (Api.Value value) )
 
                 Err error ->
-                    Functions.fail (firestoreErrorToString error)
+                    ( model, serverError responseValue (firestoreErrorToString error) )
 
 
-requestSubscriptions sharedModel requestModel =
-    Sub.none
+subscriptions model =
+    requests NewRequest
 
 
 firestoreErrorToString error =

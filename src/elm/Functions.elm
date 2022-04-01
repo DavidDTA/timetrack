@@ -1,4 +1,4 @@
-module Functions exposing (Endpoint, SendError(..), continue, endpoint, fail, send, server, succeed)
+module Functions exposing (Endpoint, SendError(..), endpoint, receive, respond, send)
 
 import Dict
 import Http
@@ -23,6 +23,10 @@ type SendError
     | HttpError Http.Metadata String
     | MalformedJson Json.Decode.Error
     | SerializationError (Serialize.Error Never)
+
+
+type ReceiveError
+    = ReceiveError
 
 
 endpoint path requestCodec responseCodec =
@@ -62,145 +66,46 @@ send (Endpoint { path, requestCodec, responseCodec }) tag request =
         }
 
 
-type alias Model sharedModel requestModel =
-    { requests :
-        Dict.Dict
-            IncrementId.Id
-            { responseToken : Json.Encode.Value
-            , requestModel : requestModel
-            }
-    , nextId : IncrementId.Id
-    , sharedModel : sharedModel
-    }
-
-
-type Msg requestMsg
-    = NewRequest
-        { request : Json.Encode.Value
-        , responseToken : Json.Encode.Value
-        }
-    | Continuation
-        { id : IncrementId.Id
-        , requestMsg : requestMsg
-        }
-
-
-type Step response requestModel requestMsg
-    = Fail String
-    | Succeed response
-    | Continue
-        { newRequestModel : requestModel
-        , cmd : Cmd requestMsg
-        }
-
-
-fail =
-    Fail
-
-
-succeed =
-    Succeed
-
-
-continue =
-    Continue
-
-
-server config =
-    Platform.worker
-        { init = init config
-        , update = update config config.endpoint
-        , subscriptions = subscriptions config
-        }
-
-
-init { sharedInit } flags =
+receive : Endpoint req res -> { request : Json.Decode.Value, response : Json.Encode.Value } -> Result ReceiveError req
+receive (Endpoint { path, requestCodec }) { request, response } =
     let
-        ( sharedModel, cmd ) =
-            sharedInit flags
+        decodeRequest =
+            Json.Decode.map3
+                (\method requestPath body -> { method = method, requestPath = requestPath, body = body })
+                (Json.Decode.field "method" Json.Decode.string)
+                (Json.Decode.field "path" Json.Decode.string)
+                (Json.Decode.field "body" Json.Decode.value)
+                |> Json.Decode.andThen
+                    (\{ method, requestPath, body } ->
+                        if method == "POST" then
+                            if requestPath == path then
+                                case Serialize.decodeFromJson requestCodec body of
+                                    Result.Err err ->
+                                        Json.Decode.fail
+                                            (case err of
+                                                Serialize.CustomError _ ->
+                                                    ""
+
+                                                Serialize.DataCorrupted ->
+                                                    ""
+
+                                                Serialize.SerializerOutOfDate ->
+                                                    ""
+                                            )
+
+                                    Result.Ok parsed ->
+                                        Json.Decode.succeed parsed
+
+                            else
+                                Json.Decode.fail ""
+
+                        else
+                            Json.Decode.fail ""
+                    )
     in
-    ( { requests = Dict.empty
-      , sharedModel = sharedModel
-      , nextId = IncrementId.zero
-      }
-    , cmd
-    )
+    Json.Decode.decodeValue decodeRequest request
+        |> Result.mapError (always ReceiveError)
 
 
-updateForStep { responsePort, errorPort } responseCodec id responseToken result model =
-    case result of
-        Fail message ->
-            ( { model | requests = Dict.remove id model.requests }
-            , Cmd.batch
-                [ responsePort ( responseToken, 500, "" )
-                , errorPort message
-                ]
-            )
-
-        Continue { newRequestModel, cmd } ->
-            ( { model | requests = Dict.insert id { responseToken = responseToken, requestModel = newRequestModel } model.requests }
-            , Cmd.map (\requestMsg -> Continuation { id = id, requestMsg = requestMsg }) cmd
-            )
-
-        Succeed response ->
-            ( { model | requests = Dict.remove id model.requests }
-            , responsePort ( responseToken, 200, Serialize.encodeToJson responseCodec response |> Json.Encode.encode 0 )
-            )
-
-
-update ({ requestInit, requestUpdate, responsePort, errorPort } as config) (Endpoint { requestCodec, responseCodec }) msg model =
-    case msg of
-        NewRequest { request, responseToken } ->
-            let
-                decodeRequest =
-                    Json.Decode.map2
-                        Tuple.pair
-                        (Json.Decode.field "method" Json.Decode.string)
-                        (Json.Decode.field "body" Json.Decode.value)
-                        |> Json.Decode.andThen
-                            (\( method, body ) ->
-                                if method == "POST" then
-                                    case Serialize.decodeFromJson requestCodec body of
-                                        Result.Err err ->
-                                            Json.Decode.fail
-                                                (case err of
-                                                    Serialize.CustomError _ ->
-                                                        ""
-
-                                                    Serialize.DataCorrupted ->
-                                                        ""
-
-                                                    Serialize.SerializerOutOfDate ->
-                                                        ""
-                                                )
-
-                                        Result.Ok parsed ->
-                                            Json.Decode.succeed parsed
-
-                                else
-                                    Json.Decode.fail ""
-                            )
-            in
-            case Json.Decode.decodeValue decodeRequest request of
-                Result.Err _ ->
-                    ( model, responsePort ( responseToken, 400, "" ) )
-
-                Result.Ok parsedRequest ->
-                    updateForStep config responseCodec model.nextId responseToken (requestInit model.sharedModel parsedRequest) { model | nextId = IncrementId.increment model.nextId }
-
-        Continuation { id, requestMsg } ->
-            case Dict.get id model.requests of
-                Nothing ->
-                    ( model, errorPort "unexpected message" )
-
-                Just { responseToken, requestModel } ->
-                    updateForStep config responseCodec id responseToken (requestUpdate requestMsg requestModel) model
-
-
-subscriptions { requestPort, requestSubscriptions } model =
-    Sub.batch
-        [ requestPort (\( request, responseToken ) -> NewRequest { request = request, responseToken = responseToken })
-        , Dict.toList model.requests
-            |> List.map (\( id, requestModel ) -> Sub.map (\requestMsg -> Continuation { id = id, requestMsg = requestMsg }) (requestSubscriptions model.sharedModel requestModel))
-            |> Sub.batch
-        ]
+respond (Endpoint { path, requestCodec, responseCodec }) =
+    Debug.todo ""
