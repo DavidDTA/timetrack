@@ -54,9 +54,9 @@ init flags =
         result =
             Json.Decode.decodeValue
                 (Json.Decode.map2 Flags
-                    (Json.Decode.at [ "firebaseProjectId" ] Json.Decode.string)
-                    (Json.Decode.at [ "firestoreHostPortOverride" ]
-                        (Json.Decode.nullable Json.Decode.string
+                    (Json.Decode.at [ "GCLOUD_PROJECT" ] Json.Decode.string)
+                    (Json.Decode.at [ "FIRESTORE_EMULATOR_HOST" ]
+                        (Json.Decode.maybe Json.Decode.string
                             |> Json.Decode.andThen
                                 (\hostPortStringMaybe ->
                                     case hostPortStringMaybe of
