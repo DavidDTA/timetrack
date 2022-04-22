@@ -1,9 +1,9 @@
 #!/usr/bin/env -S bin/docker -- sh -e
 
-workspace=/publish
+workspace=/tmp/publish
 mkdir "${workspace}"
 git archive --format=tar HEAD | tar xf - --directory="${workspace}"
-ln -s /workdir/functions/node_modules /publish/functions/node_modules
+ln -s /workdir/functions/node_modules "${workspace}/functions/node_modules"
 
 cd "${workspace}"
 bin/configure

@@ -2,7 +2,7 @@
 
 bin/configure
 
-workspace="/tmp/live"
+workspace=/tmp/live
 mkdir "${workspace}"
 mkdir "${workspace}/-"
 cp -r src/static/* "${workspace}"
