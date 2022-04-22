@@ -55,28 +55,26 @@ init flags =
             Json.Decode.decodeValue
                 (Json.Decode.map2 Flags
                     (Json.Decode.at [ "GCLOUD_PROJECT" ] Json.Decode.string)
-                    (Json.Decode.at [ "FIRESTORE_EMULATOR_HOST" ]
-                        (Json.Decode.maybe Json.Decode.string
-                            |> Json.Decode.andThen
-                                (\hostPortStringMaybe ->
-                                    case hostPortStringMaybe of
-                                        Nothing ->
-                                            Json.Decode.succeed Nothing
+                    (Json.Decode.maybe (Json.Decode.at [ "FIRESTORE_EMULATOR_HOST" ] Json.Decode.string)
+                        |> Json.Decode.andThen
+                            (\hostPortStringMaybe ->
+                                case hostPortStringMaybe of
+                                    Nothing ->
+                                        Json.Decode.succeed Nothing
 
-                                        Just hostPortString ->
-                                            case String.split ":" hostPortString of
-                                                host :: portString :: [] ->
-                                                    case String.toInt portString of
-                                                        Nothing ->
-                                                            Json.Decode.fail ""
+                                    Just hostPortString ->
+                                        case String.split ":" hostPortString of
+                                            host :: portString :: [] ->
+                                                case String.toInt portString of
+                                                    Nothing ->
+                                                        Json.Decode.fail ""
 
-                                                        Just portInt ->
-                                                            Json.Decode.succeed (Just ( "http://" ++ host, portInt ))
+                                                    Just portInt ->
+                                                        Json.Decode.succeed (Just ( "http://" ++ host, portInt ))
 
-                                                _ ->
-                                                    Json.Decode.fail ""
-                                )
-                        )
+                                            _ ->
+                                                Json.Decode.fail ""
+                            )
                     )
                 )
                 flags
