@@ -1,4 +1,4 @@
-module Functions exposing (Endpoint, SendError(..), endpoint, receive, respond, send)
+module Functions exposing (Credential, Endpoint, SendError(..), endpoint, getAccessToken, receive, respond, send)
 
 import Dict
 import Http
@@ -6,6 +6,29 @@ import IncrementId
 import Json.Decode
 import Json.Encode
 import Serialize
+
+
+type alias Credential =
+    { accessToken : String, expiresIn : Int }
+
+
+{-| Retrieves an access token according to ComputeEngineCredential. See: <https://github.com/firebase/firebase-admin-node/blob/master/src/app/credential-internal.ts#L195>
+-}
+getAccessToken toMsg =
+    Http.request
+        { method = "GET"
+        , headers = [ Http.header "Metadata-Flavor" "Google" ]
+        , url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+        , body = Http.emptyBody
+        , timeout = Nothing
+        , tracker = Nothing
+        , expect =
+            Http.expectJson toMsg
+                (Json.Decode.map2 Credential
+                    (Json.Decode.at [ "access_token" ] Json.Decode.string)
+                    (Json.Decode.at [ "expires_in" ] Json.Decode.int)
+                )
+        }
 
 
 type Endpoint req res

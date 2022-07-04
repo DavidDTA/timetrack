@@ -31,14 +31,14 @@ type alias Flags =
 
 
 type alias Model =
-    Maybe
-        { firestore : Firestore.Firestore
-        }
+    { firestore : Maybe Firestore.Firestore
+    }
 
 
 type Msg
     = NewRequest ( Json.Encode.Value, Json.Encode.Value )
     | GotTimerSet Json.Encode.Value (Result Firestore.Error { version : Version.Version, value : TimerSet.TimerSet })
+    | FunctionsReceivedAccessToken String (Result Http.Error Functions.Credential)
 
 
 main =
@@ -81,17 +81,26 @@ init flags =
     in
     case result of
         Ok { firebaseProjectId, firestoreHostPortOverride } ->
-            ( Just
-                { firestore =
-                    Firestore.Config.new { apiKey = "", project = firebaseProjectId }
-                        |> Maybe.Extra.unwrap identity (\( host, portInt ) -> Firestore.Config.withHost host portInt) firestoreHostPortOverride
-                        |> Firestore.init
-                }
-            , Cmd.none
+            ( { firestore =
+                    case firestoreHostPortOverride of
+                        Nothing ->
+                            Nothing
+
+                        Just ( host, portInt ) ->
+                            Firestore.Config.new { apiKey = "", project = firebaseProjectId }
+                                |> Firestore.Config.withHost host portInt
+                                |> Firestore.init
+                                |> Just
+              }
+            , if Maybe.Extra.isNothing firestoreHostPortOverride then
+                Functions.getAccessToken (FunctionsReceivedAccessToken firebaseProjectId)
+
+              else
+                Cmd.none
             )
 
         Err err ->
-            ( Nothing
+            ( { firestore = Nothing }
             , errors ("Failure to parse flags: " ++ Json.Decode.errorToString err)
             )
 
@@ -99,18 +108,15 @@ init flags =
 serverError responseValue errorMessage =
     Cmd.batch
         [ responses ( responseValue, 500, "" )
-        , errors errorMessage
+        , errors ("Server error: " ++ errorMessage)
         ]
 
 
 update msg model =
     case msg of
         NewRequest ( requestValue, responseValue ) ->
-            case model of
-                Nothing ->
-                    ( model, serverError responseValue "server uninitialized" )
-
-                Just { firestore } ->
+            case model.firestore of
+                Just firestore ->
                     case Functions.receive Api.endpoint { request = requestValue, response = responseValue } of
                         Result.Err err ->
                             ( model, responses ( responseValue, 400, "" ) )
@@ -129,6 +135,9 @@ update msg model =
                                         |> Task.attempt (GotTimerSet responseValue)
                                     )
 
+                Nothing ->
+                    ( model, serverError responseValue "server uninitialized" )
+
         GotTimerSet responseValue result ->
             case result of
                 Ok value ->
@@ -137,27 +146,49 @@ update msg model =
                 Err error ->
                     ( model, serverError responseValue (firestoreErrorToString error) )
 
+        FunctionsReceivedAccessToken firebaseProjectId result ->
+            case result of
+                Result.Err err ->
+                    ( model, errors "Functions credential error" )
+
+                Result.Ok credential ->
+                    ( { model
+                        | firestore =
+                            Firestore.Config.new { apiKey = "", project = firebaseProjectId }
+                                |> Firestore.Config.withAuthorization credential.accessToken
+                                |> Firestore.init
+                                |> Just
+                      }
+                    , Cmd.none
+                    )
+
 
 subscriptions model =
     requests NewRequest
 
 
-firestoreErrorToString error =
+httpErrorToString error =
     case error of
-        Firestore.Http_ (Http.BadUrl url) ->
+        Http.BadUrl url ->
             "bad url: " ++ url
 
-        Firestore.Http_ Http.Timeout ->
+        Http.Timeout ->
             "timeout"
 
-        Firestore.Http_ Http.NetworkError ->
+        Http.NetworkError ->
             "network error"
 
-        Firestore.Http_ (Http.BadStatus status) ->
+        Http.BadStatus status ->
             "bad status: " ++ String.fromInt status
 
-        Firestore.Http_ (Http.BadBody message) ->
+        Http.BadBody message ->
             "bad body: " ++ message
+
+
+firestoreErrorToString error =
+    case error of
+        Firestore.Http_ httpError ->
+            httpErrorToString httpError
 
         Firestore.Response { code, status, message } ->
             "(" ++ String.fromInt code ++ ") " ++ status ++ ": " ++ message

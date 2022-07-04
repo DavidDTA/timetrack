@@ -10,6 +10,6 @@ elm.ports.errors.subscribe(function(message) {
   functions.logger.error(message);
 });
 
-exports.api = functions.https.onRequest((request, response) => {
+exports.api = functions.https.onRequest(function(request, response) {
   elm.ports.requests.send([request, response]);
 });
