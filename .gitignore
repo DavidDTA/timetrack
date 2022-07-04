@@ -1,6 +1,7 @@
 /build/
 /elm-stuff/
 /firebase-debug.log
+/firestore-debug.log
 /functions/.runtimeconfig.json
 /functions/node_modules/
 /functions/src.js

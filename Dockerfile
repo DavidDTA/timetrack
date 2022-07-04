@@ -8,7 +8,7 @@ RUN apk add --no-cache \
     gzip \
     make \
     npm \
-    openjdk8-jre \
+    openjdk11-jre \
     tmux \
     vim
 
