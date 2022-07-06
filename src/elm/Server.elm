@@ -32,6 +32,7 @@ type alias Flags =
 
 type alias Model =
     { firestore : Maybe Firestore.Firestore
+    , firestoreQueuedRequests : List ( Json.Encode.Value, Json.Encode.Value )
     }
 
 
@@ -91,6 +92,7 @@ init flags =
                                 |> Firestore.Config.withHost host portInt
                                 |> Firestore.init
                                 |> Just
+              , firestoreQueuedRequests = []
               }
             , if Maybe.Extra.isNothing firestoreHostPortOverride then
                 Functions.getAccessToken (FunctionsReceivedAccessToken firebaseProjectId)
@@ -100,7 +102,9 @@ init flags =
             )
 
         Err err ->
-            ( { firestore = Nothing }
+            ( { firestore = Nothing
+              , firestoreQueuedRequests = []
+              }
             , errors ("Failure to parse flags: " ++ Json.Decode.errorToString err)
             )
 
@@ -112,31 +116,44 @@ serverError responseValue errorMessage =
         ]
 
 
+enqueueRequestForFirestore requestValue responseValue model =
+    ( { model
+        | firestoreQueuedRequests = ( requestValue, responseValue ) :: model.firestoreQueuedRequests
+      }
+    , Cmd.none
+    )
+
+
 update msg model =
     case msg of
         NewRequest ( requestValue, responseValue ) ->
-            case model.firestore of
-                Just firestore ->
-                    case Functions.receive Api.endpoint { request = requestValue, response = responseValue } of
-                        Result.Err err ->
-                            ( model, responses ( responseValue, 400, "" ) )
+            case Functions.receive Api.endpoint { request = requestValue, response = responseValue } of
+                Result.Err err ->
+                    ( model, responses ( responseValue, 400, "" ) )
 
-                        Result.Ok { usernameByFiat, request } ->
-                            case request of
-                                Api.Get ->
+                Result.Ok { usernameByFiat, request } ->
+                    case request of
+                        Api.Get ->
+                            case model.firestore of
+                                Just firestore ->
                                     ( model
                                     , Server.Storage.getTimerSet firestore usernameByFiat
                                         |> Task.attempt (GotTimerSet responseValue)
                                     )
 
-                                Api.Update version updates ->
+                                Nothing ->
+                                    enqueueRequestForFirestore requestValue responseValue model
+
+                        Api.Update version updates ->
+                            case model.firestore of
+                                Just firestore ->
                                     ( model
                                     , Server.Storage.updateTimerSet firestore usernameByFiat (\timerSet -> List.foldl Api.applyUpdate timerSet updates)
                                         |> Task.attempt (GotTimerSet responseValue)
                                     )
 
-                Nothing ->
-                    ( model, serverError responseValue "server uninitialized" )
+                                Nothing ->
+                                    enqueueRequestForFirestore requestValue responseValue model
 
         GotTimerSet responseValue result ->
             case result of
@@ -152,15 +169,21 @@ update msg model =
                     ( model, errors "Functions credential error" )
 
                 Result.Ok credential ->
-                    ( { model
-                        | firestore =
-                            Firestore.Config.new { apiKey = "", project = firebaseProjectId }
-                                |> Firestore.Config.withAuthorization credential.accessToken
-                                |> Firestore.init
-                                |> Just
-                      }
-                    , Cmd.none
-                    )
+                    model.firestoreQueuedRequests
+                        |> List.foldr
+                            (\req ( accModel, accCmd ) ->
+                                update (NewRequest req) accModel
+                                    |> Tuple.mapSecond (\newCmd -> Cmd.batch [ newCmd, accCmd ])
+                            )
+                            ( { model
+                                | firestore =
+                                    Firestore.Config.new { apiKey = "", project = firebaseProjectId }
+                                        |> Firestore.Config.withAuthorization credential.accessToken
+                                        |> Firestore.init
+                                        |> Just
+                              }
+                            , Cmd.none
+                            )
 
 
 subscriptions model =
