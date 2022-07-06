@@ -187,6 +187,9 @@ httpErrorToString error =
 
 firestoreErrorToString error =
     case error of
+        Firestore.Path_ (Firestore.InvalidPath invalidPath) ->
+            "invalid path: " ++ invalidPath
+
         Firestore.Http_ httpError ->
             httpErrorToString httpError
 

@@ -2,6 +2,7 @@ module Server.Storage exposing (getTimerSet, updateTimerSet)
 
 import Firestore
 import Firestore.Codec
+import Result.Extra
 import Task
 import Time
 import Timeline
@@ -18,7 +19,9 @@ getTimerSet firestore username =
         |> Firestore.root
         |> Firestore.collection timerSetCollection
         |> Firestore.document (pathSafe username)
-        |> Firestore.get (Firestore.Codec.asDecoder timerSetCodec)
+        |> Firestore.build
+        |> Result.Extra.toTask
+        |> Task.andThen (Firestore.get (Firestore.Codec.asDecoder timerSetCodec))
         |> Task.map .fields
         |> Task.onError
             (\error ->
@@ -43,9 +46,13 @@ updateTimerSet firestore username update =
                     |> Firestore.root
                     |> Firestore.collection timerSetCollection
                     |> Firestore.document (pathSafe username)
-                    |> Firestore.upsert
-                        (Firestore.Codec.asDecoder timerSetCodec)
-                        (Firestore.Codec.asEncoder timerSetCodec { version = Version.increment version, value = update value })
+                    |> Firestore.build
+                    |> Result.Extra.toTask
+                    |> Task.andThen
+                        (Firestore.upsert
+                            (Firestore.Codec.asDecoder timerSetCodec)
+                            (Firestore.Codec.asEncoder timerSetCodec { version = Version.increment version, value = update value })
+                        )
                     |> Task.map .fields
             )
 
