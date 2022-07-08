@@ -38,7 +38,7 @@ type alias Model =
 
 type Msg
     = NewRequest ( Json.Encode.Value, Json.Encode.Value )
-    | GotTimerSet Json.Encode.Value (Result Firestore.Error { version : Version.Version, value : TimerSet.TimerSet })
+    | GotTimerSet Json.Encode.Value (Result Server.Storage.Error { version : Version.Version, value : TimerSet.TimerSet })
     | FunctionsReceivedAccessToken String (Result Http.Error Functions.Credential)
 
 
@@ -144,11 +144,11 @@ update msg model =
                                 Nothing ->
                                     enqueueRequestForFirestore requestValue responseValue model
 
-                        Api.Update version updates ->
+                        Api.Update preconditionVersion updates ->
                             case model.firestore of
                                 Just firestore ->
                                     ( model
-                                    , Server.Storage.updateTimerSet firestore usernameByFiat (\timerSet -> List.foldl Api.applyUpdate timerSet updates)
+                                    , Server.Storage.updateTimerSet firestore usernameByFiat preconditionVersion (\timerSet -> List.foldl Api.applyUpdate timerSet updates)
                                         |> Task.attempt (GotTimerSet responseValue)
                                     )
 
@@ -161,7 +161,7 @@ update msg model =
                     ( model, responses ( responseValue, 200, Functions.respond Api.endpoint (Api.Value value) ) )
 
                 Err error ->
-                    ( model, serverError responseValue (firestoreErrorToString error) )
+                    ( model, serverError responseValue (storageErrorToString error) )
 
         FunctionsReceivedAccessToken firebaseProjectId result ->
             case result of
@@ -218,3 +218,12 @@ firestoreErrorToString error =
 
         Firestore.Response { code, status, message } ->
             "(" ++ String.fromInt code ++ ") " ++ status ++ ": " ++ message
+
+
+storageErrorToString error =
+    case error of
+        Server.Storage.PreconditionFailure ->
+            "precondition failure"
+
+        Server.Storage.FirestoreError firestoreError ->
+            firestoreErrorToString firestoreError

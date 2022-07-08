@@ -1,4 +1,4 @@
-module Server.Storage exposing (getTimerSet, updateTimerSet)
+module Server.Storage exposing (Error(..), getTimerSet, updateTimerSet)
 
 import Firestore
 import Firestore.Codec
@@ -8,6 +8,11 @@ import Time
 import Timeline
 import TimerSet
 import Version
+
+
+type Error
+    = PreconditionFailure
+    | FirestoreError Firestore.Error
 
 
 timerSetCollection =
@@ -31,29 +36,34 @@ getTimerSet firestore username =
                             Task.succeed { version = Version.zero, value = TimerSet.empty }
 
                         else
-                            Task.fail error
+                            Task.fail (FirestoreError error)
 
                     _ ->
-                        Task.fail error
+                        Task.fail (FirestoreError error)
             )
 
 
-updateTimerSet firestore username update =
+updateTimerSet firestore username preconditionVersion update =
     getTimerSet firestore username
         |> Task.andThen
             (\{ version, value } ->
-                firestore
-                    |> Firestore.root
-                    |> Firestore.collection timerSetCollection
-                    |> Firestore.document (pathSafe username)
-                    |> Firestore.build
-                    |> Result.Extra.toTask
-                    |> Task.andThen
-                        (Firestore.upsert
-                            (Firestore.Codec.asDecoder timerSetCodec)
-                            (Firestore.Codec.asEncoder timerSetCodec { version = Version.increment version, value = update value })
-                        )
-                    |> Task.map .fields
+                if version == preconditionVersion then
+                    firestore
+                        |> Firestore.root
+                        |> Firestore.collection timerSetCollection
+                        |> Firestore.document (pathSafe username)
+                        |> Firestore.build
+                        |> Result.Extra.toTask
+                        |> Task.andThen
+                            (Firestore.upsert
+                                (Firestore.Codec.asDecoder timerSetCodec)
+                                (Firestore.Codec.asEncoder timerSetCodec { version = Version.increment version, value = update value })
+                            )
+                        |> Task.map .fields
+                        |> Task.mapError FirestoreError
+
+                else
+                    Task.fail PreconditionFailure
             )
 
 
