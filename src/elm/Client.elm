@@ -743,6 +743,8 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
         , Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Html.Styled.text strings.next ]
         ]
     ]
+        ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.history ] ]
+        ++ List.map (viewHistoryItem zone timerSet) dailyHistory
         ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.totals ] ]
         ++ List.map
             (\timerId ->
@@ -764,8 +766,6 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
            , viewTotalLine strings.abbreviationProductive (actCatPred .category TimerSet.Productive)
            , viewTotalLine strings.total Maybe.Extra.isJust
            ]
-        ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.history ] ]
-        ++ List.map (viewHistoryItem zone timerSet) dailyHistory
 
 
 viewActCatToggle factory id currentValue newValue text =
