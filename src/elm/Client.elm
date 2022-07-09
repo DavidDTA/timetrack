@@ -475,7 +475,6 @@ globalCss { remote, time } =
         [ Css.Global.everything
             [ Css.margin Css.zero
             , Css.padding Css.zero
-            , Css.property "overscroll-behavior" "none"
             , Css.fontFamilies [ Css.qt "Nunito", Css.sansSerif.value ]
             ]
         , Css.Global.html
