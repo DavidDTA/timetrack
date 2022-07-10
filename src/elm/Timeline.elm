@@ -115,13 +115,16 @@ at posix (Timeline sortedArray) =
 
 
 fold : acc -> (Maybe a -> Time.Posix -> Duration.Duration -> acc -> acc) -> Time.Posix -> Time.Posix -> Timeline a -> acc
-fold initAcc func startInclusive endExclusive (Timeline sortedArray) =
+fold initAcc func startInclusive requestedEndExclusive (Timeline sortedArray) =
     let
         startInclusiveMillis =
             Time.posixToMillis startInclusive
 
         endExclusiveMillis =
-            Time.posixToMillis endExclusive
+            max startInclusiveMillis (Time.posixToMillis requestedEndExclusive)
+
+        endExclusive =
+            Time.millisToPosix endExclusiveMillis
 
         startingValue =
             case SortedArray.before startInclusiveMillis sortedArray of
