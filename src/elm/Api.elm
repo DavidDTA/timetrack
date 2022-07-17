@@ -37,7 +37,11 @@ type Update
     | TimersRename TimerSet.TimerId String
     | TimersSetActivity TimerSet.TimerId (Maybe TimerSet.Activity)
     | TimersSetCategory TimerSet.TimerId (Maybe TimerSet.Category)
-    | TimersSetActive (Maybe TimerSet.TimerId) Time.Posix
+    | TimersSetActive
+        { timerId : Maybe TimerSet.TimerId
+        , start : Time.Posix
+        , end : Maybe Time.Posix
+        }
 
 
 applyUpdate apiUpdate timerSet =
@@ -47,7 +51,7 @@ applyUpdate apiUpdate timerSet =
                 ( newTimerSet, newTimerId ) =
                     TimerSet.addTimer timerSet
             in
-            TimerSet.startTimer (Just newTimerId) timestamp newTimerSet
+            TimerSet.setTimer (Just newTimerId) timestamp Nothing newTimerSet
 
         TimersClear ->
             TimerSet.reset timerSet
@@ -83,8 +87,8 @@ applyUpdate apiUpdate timerSet =
                 )
                 timerSet
 
-        TimersSetActive timerId timestamp ->
-            TimerSet.startTimer timerId timestamp timerSet
+        TimersSetActive { timerId, start, end } ->
+            TimerSet.setTimer timerId start end timerSet
 
 
 endpoint =
@@ -154,15 +158,21 @@ serializeUpdate =
                 TimersSetCategory timerId category ->
                     timersSetCategoryEncoder timerId category
 
-                TimersSetActive timerId posix ->
-                    timersSetActiveEncoder timerId posix
+                TimersSetActive params ->
+                    timersSetActiveEncoder params
         )
         |> Serialize.variant1 TimersAddAndStart serializePosix
         |> Serialize.variant0 TimersClear
         |> Serialize.variant2 TimersRename serializeTimerId Serialize.string
         |> Serialize.variant2 TimersSetActivity serializeTimerId (Serialize.maybe serializeActivity)
         |> Serialize.variant2 TimersSetCategory serializeTimerId (Serialize.maybe serializeCategory)
-        |> Serialize.variant2 TimersSetActive (Serialize.maybe serializeTimerId) serializePosix
+        |> Serialize.variant1 TimersSetActive
+            (Serialize.record (\timerId start end -> { timerId = timerId, start = start, end = end })
+                |> Serialize.field .timerId (Serialize.maybe serializeTimerId)
+                |> Serialize.field .start serializePosix
+                |> Serialize.field .end (Serialize.maybe serializePosix)
+                |> Serialize.finishRecord
+            )
         |> Serialize.finishCustomType
 
 

@@ -369,7 +369,7 @@ update msg model =
                             else
                                 Just id
                     in
-                    enqueue (Api.TimersSetActive newId now) model
+                    enqueue (Api.TimersSetActive { timerId = newId, start = now, end = Nothing }) model
 
                 ( _, _ ) ->
                     nop
