@@ -21,6 +21,7 @@ import Material.Icons.Toggle
 import Maybe.Extra
 import Quantity
 import Result.Extra
+import SelectedDate
 import Serialize
 import Task
 import Time
@@ -50,7 +51,7 @@ type alias Model =
     { time : TimeModel
     , username : Username
     , errors : List Error
-    , historySelectedDate : Maybe Date.Date
+    , historySelectedDate : SelectedDate.SelectedDate
     , remote : Remote
     , pending : Pending Remote
     , clearConfirmation : ClearConfirmation
@@ -134,7 +135,7 @@ init { localStorage } _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , username = username
       , errors = []
-      , historySelectedDate = Nothing
+      , historySelectedDate = SelectedDate.unselected
       , remote = { timerSet = Nothing }
       , pending = PendingIdle
       , clearConfirmation = ClearConfirmationHidden
@@ -283,22 +284,12 @@ update msg model =
                     model
 
                 TimeInitialized { now, zone } ->
-                    let
-                        today =
-                            Date.fromPosix zone now
-
-                        newDate =
-                            model.historySelectedDate
-                                |> Maybe.withDefault today
-                                |> Date.add Date.Days days
-                    in
                     { model
                         | historySelectedDate =
-                            if newDate == today then
-                                Nothing
-
-                            else
-                                Just newDate
+                            model.historySelectedDate
+                                |> SelectedDate.getDate now zone
+                                |> Date.add Date.Days days
+                                |> SelectedDate.fromDate now zone
                     }
             , Cmd.none
             )
@@ -688,7 +679,7 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
     let
         date =
             historySelectedDate
-                |> Maybe.withDefault (Date.fromPosix zone now)
+                |> SelectedDate.getDate now zone
 
         dayStart =
             startOfDay zone date
@@ -734,7 +725,7 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
     in
     [ Html.Styled.h1 []
         [ historySelectedDate
-            |> Maybe.withDefault (Date.fromPosix zone now)
+            |> SelectedDate.getDate now zone
             |> Date.toIsoString
             |> Html.Styled.text
         ]
