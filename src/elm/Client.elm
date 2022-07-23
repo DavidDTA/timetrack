@@ -11,6 +11,7 @@ import Css.Transitions
 import Date
 import Duration
 import Functions
+import GenericDict
 import Html.Styled
 import Html.Styled.Attributes
 import Html.Styled.Events
@@ -54,8 +55,8 @@ type alias Model =
     , historySelectedDate : SelectedDate.SelectedDate
     , remote : Remote
     , pending : Pending Remote
+    , timersEdits : GenericDict.Dict TimerSet.TimerId TimerNameEdit
     , clearConfirmation : ClearConfirmation
-    , edit : Maybe Edit
     }
 
 
@@ -94,8 +95,8 @@ type Username
     | SelectedUsername String
 
 
-type Edit
-    = EditTimerName { timerId : TimerSet.TimerId, name : String }
+type alias TimerNameEdit =
+    { name : String }
 
 
 type Error
@@ -115,7 +116,7 @@ type Msg
     | ClearTimersCancel
     | ClearTimersConfirm
     | HistoryIncrementDate { days : Int }
-    | TimerEditCommit
+    | TimerEditCommit TimerSet.TimerId
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
     | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
     | TimerToggleCategory TimerSet.TimerId TimerSet.Category
@@ -139,7 +140,7 @@ init { localStorage } _ _ =
       , remote = { timerSet = Nothing }
       , pending = PendingIdle
       , clearConfirmation = ClearConfirmationHidden
-      , edit = Nothing
+      , timersEdits = timerIdDict.empty
       }
     , Cmd.batch
         [ TimeZone.getZone
@@ -294,17 +295,17 @@ update msg model =
             , Cmd.none
             )
 
-        TimerEditCommit ->
-            case model.edit of
+        TimerEditCommit timerId ->
+            case timerIdDict.get timerId model.timersEdits of
                 Nothing ->
                     nop
 
-                Just (EditTimerName { timerId, name }) ->
-                    { model | edit = Nothing }
+                Just { name } ->
+                    { model | timersEdits = timerIdDict.remove timerId model.timersEdits }
                         |> enqueue (Api.TimersRename timerId name)
 
-        TimerEditRename edit ->
-            ( { model | edit = Just (EditTimerName edit) }, Cmd.none )
+        TimerEditRename timerEditRename ->
+            ( { model | timersEdits = timerIdDict.insert timerEditRename.timerId { name = timerEditRename.name } model.timersEdits }, Cmd.none )
 
         TimerToggleActivity timerId activity ->
             case model.remote.timerSet of
@@ -608,7 +609,7 @@ viewPaused =
     Html.Styled.text strings.paused
 
 
-viewTimers { now, zone } timerSet { clearConfirmation, edit } =
+viewTimers { now, zone } timerSet { clearConfirmation, timersEdits } =
     let
         history =
             TimerSet.history timerSet
@@ -628,9 +629,9 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
             viewPaused
 
         Just currentTimerId ->
-            viewTimer now edit timerSet currentTimerId
+            viewTimer now (timerIdDict.get currentTimerId timersEdits) timerSet currentTimerId
     ]
-        ++ List.map (viewTimer now edit timerSet) timers
+        ++ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) timers
         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text strings.startNewTimer ]
            ]
         ++ (case clearConfirmation of
@@ -642,12 +643,11 @@ viewTimers { now, zone } timerSet { clearConfirmation, edit } =
                     , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text strings.clearTimersConfirm ]
                     ]
            )
-        ++ (case edit of
-                Nothing ->
-                    []
+        ++ (if timerIdDict.isEmpty timersEdits then
+                []
 
-                Just _ ->
-                    [ Html.Styled.text "*" ]
+            else
+                [ Html.Styled.text "*" ]
            )
 
 
@@ -815,15 +815,11 @@ viewTimer now edit timerSet id =
                             Nothing ->
                                 name
 
-                            Just (EditTimerName nameEdit) ->
-                                if nameEdit.timerId == id then
-                                    nameEdit.name
-
-                                else
-                                    name
+                            Just nameEdit ->
+                                nameEdit.name
                         )
                     , Html.Styled.Events.onInput (\updatedName -> TimerEditRename { timerId = id, name = updatedName })
-                    , Html.Styled.Events.onBlur TimerEditCommit
+                    , Html.Styled.Events.onBlur (TimerEditCommit id)
                     ]
                     []
                 , Html.Styled.text " "
@@ -1018,3 +1014,7 @@ durations =
 localStorageKeys =
     { username = "username"
     }
+
+
+timerIdDict =
+    GenericDict.makeInterface TimerSet.compareTimerId

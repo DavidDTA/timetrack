@@ -1,4 +1,4 @@
-module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, create, empty, get, history, keyTimerId, listTimerIds, reset, setTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, compareTimerId, create, empty, get, history, keyTimerId, listTimerIds, reset, setTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
 
 import Duration
 import List.Extra
@@ -35,6 +35,10 @@ type alias Timer =
 
 type TimerId
     = TimerId Int
+
+
+compareTimerId (TimerId a) (TimerId b) =
+    compare a b
 
 
 timerIdFromRaw : Int -> TimerId
