@@ -1,0 +1,1 @@
+The code in this drectory (and subdirectories thereof) was copied from https://github.com/elm/core and is subject to the license in the LICENSE file. Only the code in this directory (and subdirectories thereof) is governed by that license.
