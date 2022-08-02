@@ -43,8 +43,8 @@ main =
         , view = view
         , update = update
         , subscriptions = sub
-        , onUrlRequest = always Nop
-        , onUrlChange = always Nop
+        , onUrlRequest = always UrlRequest
+        , onUrlChange = always UrlChange
         }
 
 
@@ -102,12 +102,12 @@ type alias TimerNameEdit =
 type Error
     = TimeZoneError TimeZone.Error
     | ApiError Functions.SendError
+    | Uninitialized
 
 
 type Msg
     = ApiResponse (Result Functions.SendError Api.Response)
     | ApiRetry
-    | Nop
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | UpdateZoneError TimeZone.Error
@@ -121,6 +121,8 @@ type Msg
     | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
     | TimerToggleCategory TimerSet.TimerId TimerSet.Category
     | TimerToggleRunning TimerSet.TimerId
+    | UrlChange
+    | UrlRequest
     | UsernameEdit String
     | UsernameSubmit
 
@@ -163,10 +165,6 @@ sub _ =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    let
-        nop =
-            ( model, Cmd.none )
-    in
     case msg of
         ApiResponse result ->
             case result of
@@ -229,9 +227,6 @@ update msg model =
                             in
                             ( model2, Cmd.batch [ cmd1, cmd2 ] )
 
-        Nop ->
-            nop
-
         UpdateNow posix ->
             ( { model
                 | time =
@@ -261,10 +256,16 @@ update msg model =
         UpdateZoneError err ->
             ( { model | errors = TimeZoneError err :: model.errors }, Cmd.none )
 
+        UrlChange ->
+            ( model, Cmd.none )
+
+        UrlRequest ->
+            ( model, Cmd.none )
+
         AddTimer ->
             case model.time of
                 TimeUninitialized _ ->
-                    nop
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
                 TimeInitialized { now } ->
                     enqueue (Api.TimersAddAndStart now) model
@@ -298,7 +299,7 @@ update msg model =
         TimerEditCommit timerId ->
             case timerIdDict.get timerId model.timersEdits of
                 Nothing ->
-                    nop
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
                 Just { name } ->
                     { model | timersEdits = timerIdDict.remove timerId model.timersEdits }
@@ -325,7 +326,7 @@ update msg model =
                     enqueue (Api.TimersSetActivity timerId newActivity) model
 
                 Nothing ->
-                    nop
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
         TimerToggleCategory timerId category ->
             case model.remote.timerSet of
@@ -345,7 +346,7 @@ update msg model =
                     enqueue (Api.TimersSetCategory timerId newCategory) model
 
                 Nothing ->
-                    nop
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
         TimerToggleRunning id ->
             case ( model.time, model.remote.timerSet ) of
@@ -364,7 +365,7 @@ update msg model =
                     enqueue (Api.TimersSetActive { timerId = newId, start = now, end = Nothing }) model
 
                 ( _, _ ) ->
-                    nop
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
         UsernameEdit username ->
             ( { model | username = EditingUsername username }, Cmd.none )
@@ -1003,6 +1004,9 @@ strings =
                                         Serialize.SerializerOutOfDate ->
                                             "Serializer out of date"
                                    )
+
+                Uninitialized ->
+                    "Uninitialized!"
     }
 
 
