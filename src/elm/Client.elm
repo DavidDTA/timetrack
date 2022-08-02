@@ -623,7 +623,7 @@ viewTimers { now, zone } timerSet { clearConfirmation, timersEdits } =
                 |> Timeline.toList
                 |> List.reverse
                 |> List.filterMap (Tuple.second >> Maybe.Extra.filter (Just >> (/=) currentTimer))
-                |> List.Extra.uniqueBy TimerSet.keyTimerId
+                |> List.Extra.unique
     in
     [ case currentTimer of
         Nothing ->
