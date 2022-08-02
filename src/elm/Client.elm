@@ -692,7 +692,7 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
 
         dailyHistory =
             history
-                |> Timeline.fold [] (\value start duration -> (::) ( value, start )) dayStart dayEnd
+                |> Timeline.fold [] (\{ value, start, duration } -> (::) ( value, start )) dayStart dayEnd
                 |> List.reverse
 
         viewTotalLine text predicate =
@@ -706,17 +706,17 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
 
         timers =
             Timeline.fold []
-                (\maybeValue start duration acc ->
-                    case maybeValue of
+                (\{ value, start, duration } acc ->
+                    case value of
                         Nothing ->
                             acc
 
-                        Just value ->
-                            if List.member value acc then
+                        Just actualValue ->
+                            if List.member actualValue acc then
                                 acc
 
                             else
-                                value :: acc
+                                actualValue :: acc
                 )
                 dayStart
                 dayEnd
@@ -779,9 +779,9 @@ viewActCatToggle factory id currentValue newValue text =
 sumDuration : (Maybe a -> Bool) -> Time.Posix -> Time.Posix -> Timeline.Timeline a -> Duration.Duration
 sumDuration filter startInclusive endExclusive =
     let
-        addIfKey testKey _ durationToAdd =
-            if filter testKey then
-                Quantity.plus durationToAdd
+        addIfKey { value, duration } =
+            if filter value then
+                Quantity.plus duration
 
             else
                 identity

@@ -114,7 +114,7 @@ at posix (Timeline sortedArray) =
                     Nothing
 
 
-fold : acc -> (Maybe a -> Time.Posix -> Duration.Duration -> acc -> acc) -> Time.Posix -> Time.Posix -> Timeline a -> acc
+fold : acc -> ({ value : Maybe a, start : Time.Posix, duration : Duration.Duration } -> acc -> acc) -> Time.Posix -> Time.Posix -> Timeline a -> acc
 fold initAcc func startInclusive requestedEndExclusive (Timeline sortedArray) =
     let
         startInclusiveMillis =
@@ -145,7 +145,7 @@ fold initAcc func startInclusive requestedEndExclusive (Timeline sortedArray) =
                             Time.millisToPosix k
                     in
                     { acc =
-                        func previous.value previous.start (Duration.from previous.start kPosix) acc
+                        func { value = previous.value, start = previous.start, duration = Duration.from previous.start kPosix } acc
                     , previous =
                         { start = kPosix
                         , value = v
@@ -161,7 +161,8 @@ fold initAcc func startInclusive requestedEndExclusive (Timeline sortedArray) =
                 sliced
     in
     func
-        foldResult.previous.value
-        foldResult.previous.start
-        (Duration.from foldResult.previous.start endExclusive)
+        { value = foldResult.previous.value
+        , start = foldResult.previous.start
+        , duration = Duration.from foldResult.previous.start endExclusive
+        }
         foldResult.acc
