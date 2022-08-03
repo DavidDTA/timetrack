@@ -145,7 +145,11 @@ fold initAcc func startInclusive requestedEndExclusive (Timeline sortedArray) =
                             Time.millisToPosix k
                     in
                     { acc =
-                        func { value = previous.value, start = previous.start, duration = Duration.from previous.start kPosix } acc
+                        if previous.start == kPosix then
+                            acc
+
+                        else
+                            func { value = previous.value, start = previous.start, duration = Duration.from previous.start kPosix } acc
                     , previous =
                         { start = kPosix
                         , value = v
