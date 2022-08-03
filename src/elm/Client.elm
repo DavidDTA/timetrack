@@ -52,6 +52,7 @@ type alias Model =
     { time : TimeModel
     , username : Username
     , errors : List Error
+    , historyEdit : Maybe HistoryEdit
     , historySelectedDate : SelectedDate.SelectedDate
     , remote : Remote
     , pending : Pending Remote
@@ -99,9 +100,23 @@ type alias TimerNameEdit =
     { name : String }
 
 
+type alias HistoryEdit =
+    { originalStart : Time.Posix
+    , originalEnd : Time.Posix
+    , originalTimerId : Maybe TimerSet.TimerId
+    , startHour : Int
+    , startMinute : Int
+    , endHour : Int
+    , endMinute : Int
+    , timerId : Maybe TimerSet.TimerId
+    , zone : Time.Zone
+    }
+
+
 type Error
     = TimeZoneError TimeZone.Error
     | ApiError Functions.SendError
+    | InvalidHistoryEdit String
     | Uninitialized
 
 
@@ -115,6 +130,13 @@ type Msg
     | ClearTimersInitiate
     | ClearTimersCancel
     | ClearTimersConfirm
+    | HistoryEditStart { timerId : Maybe TimerSet.TimerId, start : Time.Posix, end : Time.Posix }
+    | HistoryEditUpdateTimerId String
+    | HistoryEditUpdateStartHours String
+    | HistoryEditUpdateStartMinutes String
+    | HistoryEditUpdateEndHours String
+    | HistoryEditUpdateEndMinutes String
+    | HistoryEditCommit
     | HistoryIncrementDate { days : Int }
     | TimerEditCommit TimerSet.TimerId
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
@@ -138,6 +160,7 @@ init { localStorage } _ _ =
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , username = username
       , errors = []
+      , historyEdit = Nothing
       , historySelectedDate = SelectedDate.unselected
       , remote = { timerSet = Nothing }
       , pending = PendingIdle
@@ -165,6 +188,21 @@ sub _ =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        updateHistoryEdit parser mapper raw =
+            case parser raw of
+                Just selection ->
+                    ( { model
+                        | historyEdit =
+                            model.historyEdit
+                                |> Maybe.map (mapper selection)
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( { model | errors = InvalidHistoryEdit raw :: model.errors }, Cmd.none )
+    in
     case msg of
         ApiResponse result ->
             case result of
@@ -279,6 +317,121 @@ update msg model =
         ClearTimersConfirm ->
             { model | clearConfirmation = ClearConfirmationHidden }
                 |> enqueue Api.TimersClear
+
+        HistoryEditStart { timerId, start, end } ->
+            case model.time of
+                TimeUninitialized _ ->
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
+
+                TimeInitialized { zone } ->
+                    let
+                        startParts =
+                            Time.Extra.posixToParts zone start
+
+                        endParts =
+                            Time.Extra.posixToParts zone end
+                    in
+                    ( { model
+                        | historyEdit =
+                            Just
+                                { originalTimerId = timerId
+                                , originalStart = start
+                                , originalEnd = end
+                                , startHour = startParts.hour
+                                , startMinute = startParts.minute
+                                , endHour = endParts.hour
+                                , endMinute = endParts.minute
+                                , timerId = timerId
+                                , zone = zone
+                                }
+                      }
+                    , Cmd.none
+                    )
+
+        HistoryEditUpdateTimerId raw ->
+            updateHistoryEdit
+                (\raw_ ->
+                    if raw_ == "" then
+                        Just Nothing
+
+                    else
+                        raw_ |> String.toInt |> Maybe.map TimerSet.timerIdFromRaw |> Just
+                )
+                (\selection edit -> { edit | timerId = selection })
+                raw
+
+        HistoryEditUpdateStartHours raw ->
+            updateHistoryEdit String.toInt (\selection edit -> { edit | startHour = selection }) raw
+
+        HistoryEditUpdateStartMinutes raw ->
+            updateHistoryEdit String.toInt (\selection edit -> { edit | startMinute = selection }) raw
+
+        HistoryEditUpdateEndHours raw ->
+            updateHistoryEdit String.toInt (\selection edit -> { edit | endHour = selection }) raw
+
+        HistoryEditUpdateEndMinutes raw ->
+            updateHistoryEdit String.toInt (\selection edit -> { edit | endMinute = selection }) raw
+
+        HistoryEditCommit ->
+            case model.historyEdit of
+                Nothing ->
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
+
+                Just { originalTimerId, originalStart, originalEnd, startHour, startMinute, endHour, endMinute, timerId, zone } ->
+                    let
+                        originalStartParts =
+                            Time.Extra.posixToParts zone originalStart
+
+                        originalEndParts =
+                            Time.Extra.posixToParts zone originalEnd
+
+                        startSame =
+                            originalStartParts.hour == startHour && originalStartParts.minute == startMinute
+
+                        endSame =
+                            originalEndParts.hour == endHour && originalEndParts.minute == endMinute
+
+                        timerSame =
+                            originalTimerId == timerId
+
+                        start =
+                            if startSame then
+                                originalStart
+
+                            else
+                                Time.Extra.partsToPosix zone { originalStartParts | hour = startHour, minute = startMinute, second = 0, millisecond = 0 }
+
+                        end =
+                            if endSame then
+                                originalEnd
+
+                            else if endHour == 0 && endMinute == 0 then
+                                Time.Extra.ceiling Time.Extra.Day zone originalStart
+
+                            else
+                                Time.Extra.partsToPosix zone { originalStartParts | hour = endHour, minute = endMinute, second = 0, millisecond = 0 }
+
+                        withEditReset =
+                            { model | historyEdit = Nothing }
+                    in
+                    if startSame && endSame && timerSame then
+                        ( withEditReset, Cmd.none )
+
+                    else if timerSame && originalTimerId /= Nothing then
+                        let
+                            ( withRangeReset, cmd1 ) =
+                                withEditReset
+                                    |> enqueue (Api.TimersSetActive { timerId = Nothing, start = originalStart, end = Just originalEnd })
+
+                            ( withNewRange, cmd2 ) =
+                                withRangeReset
+                                    |> enqueue (Api.TimersSetActive { timerId = timerId, start = start, end = Just end })
+                        in
+                        ( withNewRange, Cmd.batch [ cmd1, cmd2 ] )
+
+                    else
+                        withEditReset
+                            |> enqueue (Api.TimersSetActive { timerId = timerId, start = start, end = Just end })
 
         HistoryIncrementDate { days } ->
             ( case model.time of
@@ -665,18 +818,89 @@ startOfDay zone date =
         }
 
 
-viewHistoryItem zone timerSet ( timer, start ) =
-    Html.Styled.div []
+viewHistoryItem zone timerSet { value, start, duration } =
+    Html.Styled.div
+        [ Html.Styled.Events.onClick (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration })
+        ]
         [ viewTimestamp zone start
         , Html.Styled.text " "
-        , timer
-            |> Maybe.map (\id -> TimerSet.get id timerSet)
-            |> Maybe.Extra.unwrap strings.paused (Maybe.Extra.unwrap strings.unknownTimer .name)
+        , value
+            |> timerDisplayName timerSet
             |> Html.Styled.text
         ]
 
 
-viewHistory { now, zone } timerSet { historySelectedDate } =
+viewHistoryEdit timerSet historyEdit =
+    case historyEdit of
+        Nothing ->
+            []
+
+        Just { originalTimerId, originalStart, originalEnd, zone } ->
+            viewTimeSelect HistoryEditUpdateStartHours HistoryEditUpdateStartMinutes zone originalStart
+                ++ [ Html.Styled.text strings.historyEditRange ]
+                ++ viewTimeSelect HistoryEditUpdateEndHours HistoryEditUpdateEndMinutes zone originalEnd
+                ++ [ viewSelect HistoryEditUpdateTimerId
+                        ({ value = ""
+                         , selected = originalTimerId == Nothing
+                         , label =
+                            timerDisplayName timerSet Nothing
+                         }
+                            :: (TimerSet.listTimerIds timerSet
+                                    |> List.map
+                                        (\timerId ->
+                                            { value = TimerSet.timerIdToRaw timerId |> String.fromInt
+                                            , selected =
+                                                Just timerId == originalTimerId
+                                            , label =
+                                                timerDisplayName timerSet (Just timerId)
+                                            }
+                                        )
+                               )
+                        )
+                   , Html.Styled.button
+                        [ Html.Styled.Events.onClick HistoryEditCommit
+                        ]
+                        [ Html.Styled.text strings.historyEditConfirm ]
+                   ]
+
+
+viewSelect onInput options =
+    Html.Styled.select
+        [ Html.Styled.Events.onInput onInput
+        ]
+        (List.map
+            (\option ->
+                Html.Styled.option
+                    [ Html.Styled.Attributes.value option.value
+                    , Html.Styled.Attributes.selected option.selected
+                    ]
+                    [ Html.Styled.text option.label ]
+            )
+            options
+        )
+
+
+viewTimeSelect updateHours updateMinutes zone posix =
+    let
+        parts =
+            Time.Extra.posixToParts zone posix
+    in
+    [ List.range 0 23
+        |> List.map (\hourOption -> { value = String.fromInt hourOption, label = String.fromInt hourOption, selected = parts.hour == hourOption })
+        |> viewSelect updateHours
+    , List.range 0 59
+        |> List.map (\minuteOption -> { value = String.fromInt minuteOption, label = String.fromInt minuteOption, selected = parts.minute == minuteOption })
+        |> viewSelect updateMinutes
+    ]
+
+
+timerDisplayName timerSet timerId =
+    timerId
+        |> Maybe.map (\id -> TimerSet.get id timerSet)
+        |> Maybe.Extra.unwrap strings.paused (Maybe.Extra.unwrap strings.unknownTimer .name)
+
+
+viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
     let
         date =
             historySelectedDate
@@ -693,7 +917,7 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
 
         dailyHistory =
             history
-                |> Timeline.fold [] (\{ value, start, duration } -> (::) ( value, start )) dayStart dayEnd
+                |> Timeline.fold [] (::) dayStart dayEnd
                 |> List.reverse
 
         viewTotalLine text predicate =
@@ -736,6 +960,7 @@ viewHistory { now, zone } timerSet { historySelectedDate } =
         ]
     ]
         ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.history ] ]
+        ++ viewHistoryEdit timerSet historyEdit
         ++ List.map (viewHistoryItem zone timerSet) dailyHistory
         ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.totals ] ]
         ++ List.map
@@ -955,6 +1180,8 @@ strings =
     , clearTimers = "clear"
     , clearTimersCancel = "cancel"
     , clearTimersConfirm = "Are you sure?"
+    , historyEditRange = " to "
+    , historyEditConfirm = "Confirm"
     , error =
         \error ->
             case error of
@@ -1004,6 +1231,9 @@ strings =
                                         Serialize.SerializerOutOfDate ->
                                             "Serializer out of date"
                                    )
+
+                InvalidHistoryEdit raw ->
+                    "Invalid history edit input: " ++ raw
 
                 Uninitialized ->
                     "Uninitialized!"
