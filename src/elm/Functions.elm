@@ -9,7 +9,7 @@ import Serialize
 
 
 type alias Credential =
-    { accessToken : String, expiresIn : Int }
+    { accessToken : String, expiresInSeconds : Int }
 
 
 {-| Retrieves an access token according to ComputeEngineCredential. See: <https://github.com/firebase/firebase-admin-node/blob/master/src/app/credential-internal.ts#L195>

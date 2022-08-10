@@ -8,6 +8,7 @@ import Http
 import Json.Decode
 import Json.Encode
 import Maybe.Extra
+import Process
 import Server.Storage
 import Task
 import Timeline
@@ -39,7 +40,8 @@ type alias Model =
 type Msg
     = NewRequest ( Json.Encode.Value, Json.Encode.Value )
     | GotTimerSet Json.Encode.Value (Result Server.Storage.Error { version : Version.Version, value : TimerSet.TimerSet })
-    | FunctionsReceivedAccessToken String (Result Http.Error Functions.Credential)
+    | FunctionsAccessTokenElapsed String
+    | FunctionsAccessTokenReceived String (Result Http.Error Functions.Credential)
 
 
 main =
@@ -95,7 +97,7 @@ init flags =
               , firestoreQueuedRequests = []
               }
             , if Maybe.Extra.isNothing firestoreHostPortOverride then
-                Functions.getAccessToken (FunctionsReceivedAccessToken firebaseProjectId)
+                Functions.getAccessToken (FunctionsAccessTokenReceived firebaseProjectId)
 
               else
                 Cmd.none
@@ -163,7 +165,12 @@ update msg model =
                 Err error ->
                     ( model, serverError responseValue (storageErrorToString error) )
 
-        FunctionsReceivedAccessToken firebaseProjectId result ->
+        FunctionsAccessTokenElapsed firebaseProjectId ->
+            ( model
+            , Functions.getAccessToken (FunctionsAccessTokenReceived firebaseProjectId)
+            )
+
+        FunctionsAccessTokenReceived firebaseProjectId result ->
             case result of
                 Result.Err err ->
                     ( model, errors "Functions credential error" )
@@ -182,7 +189,8 @@ update msg model =
                                         |> Firestore.init
                                         |> Just
                               }
-                            , Cmd.none
+                            , Process.sleep (toFloat credential.expiresInSeconds * 1000 / 3)
+                                |> Task.perform (always (FunctionsAccessTokenElapsed firebaseProjectId))
                             )
 
 
