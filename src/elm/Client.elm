@@ -452,7 +452,7 @@ update msg model =
         TimerEditCommit timerId ->
             case timerIdDict.get timerId model.timersEdits of
                 Nothing ->
-                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
+                    ( model, Cmd.none )
 
                 Just { name } ->
                     { model | timersEdits = timerIdDict.remove timerId model.timersEdits }
