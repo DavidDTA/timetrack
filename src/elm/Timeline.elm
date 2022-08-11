@@ -61,28 +61,31 @@ set value startInclusive maybeEndExclusive (Timeline sortedArray) =
                     endExclusiveMillis =
                         Time.posixToMillis endExclusive
 
-                    maybeRestartValue =
-                        case SortedArray.before (endExclusiveMillis + 1) sortedArray of
+                    sliced =
+                        SortedArray.slice (Just endExclusiveMillis) Nothing sortedArray
+
+                    valueAtStartOfSuffix =
+                        case SortedArray.at endExclusiveMillis sortedArray of
+                            Just value_ ->
+                                value_
+
                             Nothing ->
-                                Just Nothing
+                                case SortedArray.before endExclusiveMillis sortedArray of
+                                    Nothing ->
+                                        Nothing
 
-                            Just ( _, valueBeforeSuffix ) ->
-                                if valueBeforeSuffix == value then
-                                    Nothing
+                                    Just ( _, valueBeforeSuffix ) ->
+                                        valueBeforeSuffix
 
-                                else
-                                    Just valueBeforeSuffix
+                    suffix =
+                        if valueAtStartOfSuffix == value then
+                            SortedArray.remove endExclusiveMillis sliced
+
+                        else
+                            SortedArray.insert endExclusiveMillis valueAtStartOfSuffix sliced
                 in
                 if endExclusiveMillis > startInclusiveMillis then
-                    prefixThroughValue
-                        |> (case maybeRestartValue of
-                                Nothing ->
-                                    identity
-
-                                Just restartValue ->
-                                    SortedArray.insert endExclusiveMillis restartValue
-                           )
-                        |> SortedArray.merge (SortedArray.slice (Just endExclusiveMillis) Nothing sortedArray)
+                    SortedArray.merge prefixThroughValue suffix
 
                 else
                     sortedArray
