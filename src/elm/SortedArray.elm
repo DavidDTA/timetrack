@@ -116,15 +116,20 @@ slice maybeStartInclusive maybeEndExclusive (SortedArray array) =
 
 before : comparable -> SortedArray comparable v -> Maybe ( comparable, v )
 before k (SortedArray array) =
-    case find k array of
-        AtIndex index foundKey foundValue ->
-            Just ( foundKey, foundValue )
+    let
+        beforeIndex =
+            case find k array of
+                AtIndex index _ _ ->
+                    index
 
-        BeforeIndex 0 ->
-            Nothing
+                BeforeIndex index ->
+                    index
+    in
+    if beforeIndex == 0 then
+        Nothing
 
-        BeforeIndex index ->
-            Array.get (index - 1) array
+    else
+        Array.get (beforeIndex - 1) array
 
 
 at : comparable -> SortedArray comparable v -> Maybe v
