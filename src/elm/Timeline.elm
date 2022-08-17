@@ -70,12 +70,8 @@ set value startInclusive maybeEndExclusive (Timeline sortedArray) =
                                 value_
 
                             Nothing ->
-                                case SortedArray.before endExclusiveMillis sortedArray of
-                                    Nothing ->
-                                        Nothing
-
-                                    Just ( _, valueBeforeSuffix ) ->
-                                        valueBeforeSuffix
+                                SortedArray.before endExclusiveMillis sortedArray
+                                    |> Maybe.andThen Tuple.second
 
                     suffix =
                         if valueAtStartOfSuffix == value then
@@ -109,12 +105,8 @@ at posix (Timeline sortedArray) =
             value
 
         Nothing ->
-            case before of
-                Just ( _, value ) ->
-                    value
-
-                Nothing ->
-                    Nothing
+            before
+                |> Maybe.andThen Tuple.second
 
 
 fold : acc -> ({ value : Maybe a, start : Time.Posix, duration : Duration.Duration } -> acc -> acc) -> Time.Posix -> Time.Posix -> Timeline a -> acc
@@ -130,12 +122,8 @@ fold initAcc func startInclusive requestedEndExclusive (Timeline sortedArray) =
             Time.millisToPosix endExclusiveMillis
 
         startingValue =
-            case SortedArray.before startInclusiveMillis sortedArray of
-                Nothing ->
-                    Nothing
-
-                Just ( _, value ) ->
-                    value
+            SortedArray.before startInclusiveMillis sortedArray
+                |> Maybe.andThen Tuple.second
 
         sliced =
             SortedArray.slice (Just startInclusiveMillis) (Just endExclusiveMillis) sortedArray
