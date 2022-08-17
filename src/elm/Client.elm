@@ -259,7 +259,7 @@ update msg model =
                                     enqueueAll failed { model | remote = base, pending = PendingIdle }
 
                                 ( model2, cmd2 ) =
-                                    enqueueAll queue model1
+                                    enqueueAll (List.reverse queue) model1
                             in
                             ( model2, Cmd.batch [ cmd1, cmd2 ] )
 
