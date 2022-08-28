@@ -140,6 +140,8 @@ type Msg
     | HistoryIncrementDate { days : Int }
     | TimerEditCommit TimerSet.TimerId
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
+    | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
+    | TimerToggleCategory TimerSet.TimerId TimerSet.Category
     | TimerToggleRunning TimerSet.TimerId
     | UrlChange
     | UrlRequest
@@ -458,6 +460,46 @@ update msg model =
 
         TimerEditRename timerEditRename ->
             ( { model | timersEdits = timerIdDict.insert timerEditRename.timerId { name = timerEditRename.name } model.timersEdits }, Cmd.none )
+
+        TimerToggleActivity timerId activity ->
+            case model.remote.timerSet of
+                Just timerSet ->
+                    let
+                        currentActivity =
+                            TimerSet.get timerId timerSet.value
+                                |> Maybe.andThen .activity
+
+                        newActivity =
+                            if Just activity == currentActivity then
+                                Nothing
+
+                            else
+                                Just activity
+                    in
+                    enqueue (Api.TimersSetActivity timerId newActivity) model
+
+                Nothing ->
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
+
+        TimerToggleCategory timerId category ->
+            case model.remote.timerSet of
+                Just timerSet ->
+                    let
+                        currentCategory =
+                            TimerSet.get timerId timerSet.value
+                                |> Maybe.andThen .category
+
+                        newCategory =
+                            if Just category == currentCategory then
+                                Nothing
+
+                            else
+                                Just category
+                    in
+                    enqueue (Api.TimersSetCategory timerId newCategory) model
+
+                Nothing ->
+                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
         TimerToggleRunning id ->
             case ( model.time, model.remote.timerSet ) of
@@ -933,7 +975,13 @@ viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
                     ((==) (Just timerId))
             )
             timers
-        ++ [ viewTotalLine strings.total Maybe.Extra.isJust
+        ++ [ viewTotalLine strings.abbreviationActive (actCatPred .activity TimerSet.Active)
+           , viewTotalLine strings.abbreviationReactive (actCatPred .activity TimerSet.Reactive)
+           , viewTotalLine strings.abbreviationProactive (actCatPred .activity TimerSet.Proactive)
+           , viewTotalLine strings.abbreviationOperational (actCatPred .category TimerSet.Operational)
+           , viewTotalLine strings.abbreviationHelpful (actCatPred .category TimerSet.Helpful)
+           , viewTotalLine strings.abbreviationProductive (actCatPred .category TimerSet.Productive)
+           , viewTotalLine strings.total Maybe.Extra.isJust
            ]
 
 
@@ -984,7 +1032,7 @@ viewTimer now edit timerSet id =
         Nothing ->
             Html.Styled.div [] [ Html.Styled.text strings.unknownTimer ]
 
-        Just { name } ->
+        Just { name, activity, category } ->
             Html.Styled.div []
                 [ Html.Styled.input
                     [ Html.Styled.Attributes.placeholder strings.unnamedTimer
@@ -1000,6 +1048,14 @@ viewTimer now edit timerSet id =
                     , Html.Styled.Events.onBlur (TimerEditCommit id)
                     ]
                     []
+                , Html.Styled.text " "
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Active strings.abbreviationActive
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Reactive strings.abbreviationReactive
+                , viewActCatToggle TimerToggleActivity id activity TimerSet.Proactive strings.abbreviationProactive
+                , Html.Styled.text " "
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Operational strings.abbreviationOperational
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful strings.abbreviationHelpful
+                , viewActCatToggle TimerToggleCategory id category TimerSet.Productive strings.abbreviationProductive
                 , Html.Styled.text " "
                 , Html.Styled.button
                     [ Html.Styled.Events.onClick (TimerToggleRunning id)

@@ -83,16 +83,18 @@ pathSafe segment =
 
 type alias TimerSetIntermediate =
     { timerNames : List String
+    , timerActivities : List (Maybe TimerSet.Activity)
+    , timerCategories : List (Maybe TimerSet.Category)
     , timelineTimestamps : List Time.Posix
     , timelineTimerIds : List (Maybe TimerSet.TimerId)
     }
 
 
-timelineFromIntermediate timerNames timelineTimestamps timelineTimerIds version =
+timelineFromIntermediate timerNames timerActivities timerCategories timelineTimestamps timelineTimerIds version =
     { version = version
     , value =
         TimerSet.create
-            (List.map TimerSet.Timer timerNames)
+            (List.map3 TimerSet.Timer timerNames timerActivities timerCategories)
             (List.map2 Tuple.pair timelineTimestamps timelineTimerIds |> Timeline.fromList)
     }
 
@@ -113,6 +115,8 @@ timerSetCodec =
     in
     Firestore.Codec.document timelineFromIntermediate
         |> listField "timerNames" timers .name Firestore.Codec.string
+        |> listField "timerActivities" timers .activity (Firestore.Codec.maybe activityCodec)
+        |> listField "timerCategories" timers .category (Firestore.Codec.maybe categoryCodec)
         |> listField "timelineTimestamps" timeline Tuple.first Firestore.Codec.timestamp
         |> listField "timelineTimerIds" timeline Tuple.second (Firestore.Codec.maybe timerIdCodec)
         |> Firestore.Codec.optional "version" .version versionCodec Version.zero
@@ -125,3 +129,63 @@ versionCodec =
 
 timerIdCodec =
     Firestore.Codec.map TimerSet.timerIdFromRaw TimerSet.timerIdToRaw Firestore.Codec.int
+
+
+activityCodec =
+    Firestore.Codec.int
+        |> Firestore.Codec.andThen
+            (\int ->
+                case int of
+                    0 ->
+                        Firestore.Codec.succeed TimerSet.Active
+
+                    1 ->
+                        Firestore.Codec.succeed TimerSet.Reactive
+
+                    2 ->
+                        Firestore.Codec.succeed TimerSet.Proactive
+
+                    _ ->
+                        Firestore.Codec.fail "invalid activity"
+            )
+            (\activity ->
+                case activity of
+                    TimerSet.Active ->
+                        0
+
+                    TimerSet.Reactive ->
+                        1
+
+                    TimerSet.Proactive ->
+                        2
+            )
+
+
+categoryCodec =
+    Firestore.Codec.int
+        |> Firestore.Codec.andThen
+            (\int ->
+                case int of
+                    0 ->
+                        Firestore.Codec.succeed TimerSet.Operational
+
+                    1 ->
+                        Firestore.Codec.succeed TimerSet.Helpful
+
+                    2 ->
+                        Firestore.Codec.succeed TimerSet.Productive
+
+                    _ ->
+                        Firestore.Codec.fail "invalid codec"
+            )
+            (\category ->
+                case category of
+                    TimerSet.Operational ->
+                        0
+
+                    TimerSet.Helpful ->
+                        1
+
+                    TimerSet.Productive ->
+                        2
+            )

@@ -35,6 +35,8 @@ type Update
     = TimersAddAndStart Time.Posix
     | TimersClear
     | TimersRename TimerSet.TimerId String
+    | TimersSetActivity TimerSet.TimerId (Maybe TimerSet.Activity)
+    | TimersSetCategory TimerSet.TimerId (Maybe TimerSet.Category)
     | TimersSetActive
         { timerId : Maybe TimerSet.TimerId
         , start : Time.Posix
@@ -56,6 +58,34 @@ applyUpdate apiUpdate timerSet =
 
         TimersRename timerId name ->
             TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name }) timerSet
+
+        TimersSetActivity timerId activity ->
+            TimerSet.updateTimer timerId
+                (\timer ->
+                    { timer
+                        | activity =
+                            if timer.activity == activity then
+                                Nothing
+
+                            else
+                                activity
+                    }
+                )
+                timerSet
+
+        TimersSetCategory timerId category ->
+            TimerSet.updateTimer timerId
+                (\timer ->
+                    { timer
+                        | category =
+                            if timer.category == category then
+                                Nothing
+
+                            else
+                                category
+                    }
+                )
+                timerSet
 
         TimersSetActive { timerId, start, end } ->
             TimerSet.setTimer timerId start end timerSet
@@ -111,7 +141,7 @@ serializeResponse =
 
 serializeUpdate =
     Serialize.customType
-        (\timersAddAndStartEncoder timersClearEncoder timersRenameEncoder timersSetActiveEncoder value ->
+        (\timersAddAndStartEncoder timersClearEncoder timersRenameEncoder timersSetActivityEncoder timersSetCategoryEncoder timersSetActiveEncoder value ->
             case value of
                 TimersAddAndStart posix ->
                     timersAddAndStartEncoder posix
@@ -122,12 +152,20 @@ serializeUpdate =
                 TimersRename timerId name ->
                     timersRenameEncoder timerId name
 
+                TimersSetActivity timerId activity ->
+                    timersSetActivityEncoder timerId activity
+
+                TimersSetCategory timerId category ->
+                    timersSetCategoryEncoder timerId category
+
                 TimersSetActive params ->
                     timersSetActiveEncoder params
         )
         |> Serialize.variant1 TimersAddAndStart serializePosix
         |> Serialize.variant0 TimersClear
         |> Serialize.variant2 TimersRename serializeTimerId Serialize.string
+        |> Serialize.variant2 TimersSetActivity serializeTimerId (Serialize.maybe serializeActivity)
+        |> Serialize.variant2 TimersSetCategory serializeTimerId (Serialize.maybe serializeCategory)
         |> Serialize.variant1 TimersSetActive
             (Serialize.record (\timerId start end -> { timerId = timerId, start = start, end = end })
                 |> Serialize.field .timerId (Serialize.maybe serializeTimerId)
@@ -159,6 +197,8 @@ serializeTimeline =
 serializeTimer =
     Serialize.record TimerSet.Timer
         |> Serialize.field .name Serialize.string
+        |> Serialize.field .activity (Serialize.maybe serializeActivity)
+        |> Serialize.field .category (Serialize.maybe serializeCategory)
         |> Serialize.finishRecord
 
 
@@ -168,3 +208,41 @@ serializePosix =
 
 serializeTimerId =
     Serialize.map TimerSet.timerIdFromRaw TimerSet.timerIdToRaw Serialize.int
+
+
+serializeActivity =
+    Serialize.customType
+        (\active reactive proactive value ->
+            case value of
+                TimerSet.Active ->
+                    active
+
+                TimerSet.Reactive ->
+                    reactive
+
+                TimerSet.Proactive ->
+                    proactive
+        )
+        |> Serialize.variant0 TimerSet.Active
+        |> Serialize.variant0 TimerSet.Reactive
+        |> Serialize.variant0 TimerSet.Proactive
+        |> Serialize.finishCustomType
+
+
+serializeCategory =
+    Serialize.customType
+        (\operational helpful productive value ->
+            case value of
+                TimerSet.Operational ->
+                    operational
+
+                TimerSet.Helpful ->
+                    helpful
+
+                TimerSet.Productive ->
+                    productive
+        )
+        |> Serialize.variant0 TimerSet.Operational
+        |> Serialize.variant0 TimerSet.Helpful
+        |> Serialize.variant0 TimerSet.Productive
+        |> Serialize.finishCustomType

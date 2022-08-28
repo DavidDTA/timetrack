@@ -1,4 +1,4 @@
-module TimerSet exposing (Timer, TimerId, TimerSet, addTimer, compareTimerId, create, empty, get, history, listTimerIds, reset, setTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, compareTimerId, create, empty, get, history, listTimerIds, reset, setTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
 
 import Duration
 import List.Extra
@@ -14,8 +14,22 @@ type TimerSet
         }
 
 
+type Activity
+    = Active
+    | Reactive
+    | Proactive
+
+
+type Category
+    = Operational
+    | Helpful
+    | Productive
+
+
 type alias Timer =
     { name : String
+    , activity : Maybe Activity
+    , category : Maybe Category
     }
 
 
@@ -72,6 +86,8 @@ addTimer (TimerSet timerSet) =
             | timers =
                 timerSet.timers
                     ++ [ { name = ""
+                         , activity = Nothing
+                         , category = Nothing
                          }
                        ]
         }
