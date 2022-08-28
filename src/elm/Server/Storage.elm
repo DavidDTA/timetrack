@@ -91,10 +91,14 @@ type alias TimerSetIntermediate =
 
 
 timelineFromIntermediate timerNames timerActivities timerCategories timelineTimestamps timelineTimerIds version =
+    let
+        pad list =
+            list ++ List.repeat (max 0 (List.length timerNames - List.length list)) Nothing
+    in
     { version = version
     , value =
         TimerSet.create
-            (List.map3 TimerSet.Timer timerNames timerActivities timerCategories)
+            (List.map3 TimerSet.Timer timerNames (pad timerActivities) (pad timerCategories))
             (List.map2 Tuple.pair timelineTimestamps timelineTimerIds |> Timeline.fromList)
     }
 
