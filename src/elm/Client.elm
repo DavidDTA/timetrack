@@ -775,16 +775,16 @@ viewTimers { now, zone } timerSet { clearConfirmation, timersEdits } =
             history
                 |> Timeline.toList
                 |> List.reverse
-                |> List.filterMap (Tuple.second >> Maybe.Extra.filter (Just >> (/=) currentTimer))
+                |> List.filterMap Tuple.second
                 |> List.Extra.unique
     in
-    [ case currentTimer of
+    (case currentTimer of
         Nothing ->
-            viewPaused
+            [ viewPaused ]
 
         Just currentTimerId ->
-            viewTimer now (timerIdDict.get currentTimerId timersEdits) timerSet currentTimerId
-    ]
+            []
+    )
         ++ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) timers
         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text strings.startNewTimer ]
            ]
