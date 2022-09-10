@@ -776,6 +776,7 @@ viewTimers { now, zone } timerSet { clearConfirmation, timersEdits } =
                 |> Timeline.toList
                 |> List.reverse
                 |> List.filterMap Tuple.second
+                |> flip List.append (TimerSet.listTimerIds timerSet)
                 |> List.Extra.unique
     in
     (case currentTimer of
@@ -1252,3 +1253,7 @@ localStorageKeys =
 
 timerIdDict =
     GenericDict.makeInterface TimerSet.compareTimerId
+
+
+flip f a b =
+    f b a
