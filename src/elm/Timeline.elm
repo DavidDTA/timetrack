@@ -36,16 +36,16 @@ set value startInclusive maybeEndExclusive (Timeline sortedArray) =
             sortedArray
                 |> SortedArray.slice Nothing (Just startInclusiveMillis)
 
-        addValue =
+        valueBefore =
             case SortedArray.before startInclusiveMillis sortedArray of
                 Nothing ->
-                    True
+                    Nothing
 
-                Just ( _, valueBefore ) ->
-                    valueBefore /= value
+                Just ( _, valueBefore_ ) ->
+                    valueBefore_
 
         prefixThroughValue =
-            if addValue then
+            if valueBefore /= value then
                 SortedArray.insert startInclusiveMillis value prefix
 
             else
