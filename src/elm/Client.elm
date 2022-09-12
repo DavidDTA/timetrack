@@ -22,6 +22,7 @@ import Material.Icons.Toggle
 import Maybe.Extra
 import Quantity
 import Result.Extra
+import Select
 import SelectedDate
 import Serialize
 import Task
@@ -57,6 +58,7 @@ type alias Model =
     , remote : Remote
     , pending : Pending Remote
     , timersEdits : GenericDict.Dict TimerSet.TimerId TimerNameEdit
+    , timersSelectState : Select.State
     , clearConfirmation : ClearConfirmation
     }
 
@@ -140,6 +142,7 @@ type Msg
     | HistoryIncrementDate { days : Int }
     | TimerEditCommit TimerSet.TimerId
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
+    | TimerSelectMsg (Select.Msg TimerSet.TimerId)
     | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
     | TimerToggleCategory TimerSet.TimerId TimerSet.Category
     | TimerToggleRunning TimerSet.TimerId
@@ -166,6 +169,7 @@ init { localStorage } _ _ =
       , pending = PendingIdle
       , clearConfirmation = ClearConfirmationHidden
       , timersEdits = timerIdDict.empty
+      , timersSelectState = Select.initState
       }
     , Cmd.batch
         [ TimeZone.getZone
@@ -460,6 +464,17 @@ update msg model =
 
         TimerEditRename timerEditRename ->
             ( { model | timersEdits = timerIdDict.insert timerEditRename.timerId { name = timerEditRename.name } model.timersEdits }, Cmd.none )
+
+        TimerSelectMsg selectMsg ->
+            let
+                ( action, updatedState, cmd ) =
+                    Select.update selectMsg model.timersSelectState
+            in
+            ( { model
+                | timersSelectState = updatedState
+              }
+            , Cmd.map TimerSelectMsg cmd
+            )
 
         TimerToggleActivity timerId activity ->
             case model.remote.timerSet of
@@ -763,7 +778,7 @@ viewPaused =
     Html.Styled.text strings.paused
 
 
-viewTimers { now, zone } timerSet { clearConfirmation, timersEdits } =
+viewTimers { now, zone } timerSet { clearConfirmation, timersEdits, timersSelectState } =
     let
         history =
             TimerSet.history timerSet
@@ -779,13 +794,36 @@ viewTimers { now, zone } timerSet { clearConfirmation, timersEdits } =
                 |> flip List.append (TimerSet.listTimerIds timerSet)
                 |> List.Extra.unique
     in
-    (case currentTimer of
-        Nothing ->
-            [ viewPaused ]
+    [ timers
+        |> List.map
+            (\timerId ->
+                { item = timerId
+                , label =
+                    case TimerSet.get timerId timerSet of
+                        Nothing ->
+                            strings.unknownTimer
 
-        Just currentTimerId ->
-            []
-    )
+                        Just { name } ->
+                            if name == "" then
+                                strings.unnamedTimer
+
+                            else
+                                name
+                }
+            )
+        |> flip Select.menuItems (Select.single Nothing)
+        |> Select.state timersSelectState
+        |> Select.searchable True
+        |> flip Select.view (Select.selectIdentifier "")
+        |> Html.Styled.map TimerSelectMsg
+    ]
+        ++ (case currentTimer of
+                Nothing ->
+                    [ viewPaused ]
+
+                Just currentTimerId ->
+                    []
+           )
         ++ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) timers
         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text strings.startNewTimer ]
            ]
