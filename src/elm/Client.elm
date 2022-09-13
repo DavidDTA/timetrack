@@ -145,7 +145,6 @@ type Msg
     | TimerSelectMsg (Select.Msg TimerSet.TimerId)
     | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
     | TimerToggleCategory TimerSet.TimerId TimerSet.Category
-    | TimerToggleRunning TimerSet.TimerId
     | UrlChange
     | UrlRequest
     | UsernameEdit String
@@ -467,13 +466,41 @@ update msg model =
 
         TimerSelectMsg selectMsg ->
             let
-                ( action, updatedState, cmd ) =
+                ( action, updatedState, updateCmd ) =
                     Select.update selectMsg model.timersSelectState
+
+                withUpdatedState =
+                    { model
+                        | timersSelectState = updatedState
+                    }
+
+                ( withActionPerformed, actionCmd ) =
+                    case action of
+                        Nothing ->
+                            ( withUpdatedState, Cmd.none )
+
+                        Just (Select.InputChange _) ->
+                            ( withUpdatedState, Cmd.none )
+
+                        Just (Select.Select selectedTimerId) ->
+                            case withUpdatedState.time of
+                                TimeInitialized { now } ->
+                                    enqueue (Api.TimersSetActive { timerId = Just selectedTimerId, start = now, end = Nothing }) withUpdatedState
+
+                                TimeUninitialized _ ->
+                                    ( { withUpdatedState | errors = Uninitialized :: withUpdatedState.errors }, Cmd.none )
+
+                        Just (Select.DeselectMulti _) ->
+                            ( withUpdatedState, Cmd.none )
+
+                        Just Select.ClearSingleSelectItem ->
+                            ( withUpdatedState, Cmd.none )
             in
-            ( { model
-                | timersSelectState = updatedState
-              }
-            , Cmd.map TimerSelectMsg cmd
+            ( withActionPerformed
+            , Cmd.batch
+                [ actionCmd
+                , Cmd.map TimerSelectMsg updateCmd
+                ]
             )
 
         TimerToggleActivity timerId activity ->
@@ -514,25 +541,6 @@ update msg model =
                     enqueue (Api.TimersSetCategory timerId newCategory) model
 
                 Nothing ->
-                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
-
-        TimerToggleRunning id ->
-            case ( model.time, model.remote.timerSet ) of
-                ( TimeInitialized { now }, Just timerSet ) ->
-                    let
-                        currentId =
-                            Timeline.at now (TimerSet.history timerSet.value)
-
-                        newId =
-                            if Just id == currentId then
-                                Nothing
-
-                            else
-                                Just id
-                    in
-                    enqueue (Api.TimersSetActive { timerId = newId, start = now, end = Nothing }) model
-
-                ( _, _ ) ->
                     ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
         UsernameEdit username ->
@@ -1095,18 +1103,6 @@ viewTimer now edit timerSet id =
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Operational strings.abbreviationOperational
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful strings.abbreviationHelpful
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Productive strings.abbreviationProductive
-                , Html.Styled.text " "
-                , Html.Styled.button
-                    [ Html.Styled.Events.onClick (TimerToggleRunning id)
-                    ]
-                    [ Html.Styled.text
-                        (if running then
-                            strings.stop
-
-                         else
-                            strings.start
-                        )
-                    ]
                 ]
 
 
@@ -1213,8 +1209,6 @@ strings =
     , abbreviationProductive = "P"
     , total = "Total"
     , history = "History"
-    , stop = "Stop"
-    , start = "Start"
     , startNewTimer = "start new timer"
     , clearTimers = "clear"
     , clearTimersCancel = "cancel"
