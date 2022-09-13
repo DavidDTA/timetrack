@@ -1,4 +1,4 @@
-module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, compareTimerId, create, empty, get, history, listTimerIds, reset, setTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
+module TimerSet exposing (Activity(..), Category(..), Timer, TimerId, TimerSet, addTimer, compareTimerId, create, empty, get, history, listTimerIds, setTimer, timerIdFromRaw, timerIdToRaw, updateTimer)
 
 import Duration
 import List.Extra
@@ -103,11 +103,6 @@ updateTimer (TimerId id) update (TimerSet timerSet) =
                 timerSet.timers
                     |> List.Extra.updateAt id update
         }
-
-
-reset : TimerSet -> TimerSet
-reset (TimerSet timerSet) =
-    TimerSet { timers = [], history = Timeline.empty }
 
 
 setTimer : Maybe TimerId -> Time.Posix -> Maybe Time.Posix -> TimerSet -> TimerSet

@@ -33,7 +33,6 @@ type Response
 
 type Update
     = TimersAddAndStart Time.Posix
-    | TimersClear
     | TimersRename TimerSet.TimerId String
     | TimersSetActivity TimerSet.TimerId (Maybe TimerSet.Activity)
     | TimersSetCategory TimerSet.TimerId (Maybe TimerSet.Category)
@@ -52,9 +51,6 @@ applyUpdate apiUpdate timerSet =
                     TimerSet.addTimer timerSet
             in
             TimerSet.setTimer (Just newTimerId) timestamp Nothing newTimerSet
-
-        TimersClear ->
-            TimerSet.reset timerSet
 
         TimersRename timerId name ->
             TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name }) timerSet
@@ -141,13 +137,10 @@ serializeResponse =
 
 serializeUpdate =
     Serialize.customType
-        (\timersAddAndStartEncoder timersClearEncoder timersRenameEncoder timersSetActivityEncoder timersSetCategoryEncoder timersSetActiveEncoder value ->
+        (\timersAddAndStartEncoder timersRenameEncoder timersSetActivityEncoder timersSetCategoryEncoder timersSetActiveEncoder value ->
             case value of
                 TimersAddAndStart posix ->
                     timersAddAndStartEncoder posix
-
-                TimersClear ->
-                    timersClearEncoder
 
                 TimersRename timerId name ->
                     timersRenameEncoder timerId name
@@ -162,7 +155,6 @@ serializeUpdate =
                     timersSetActiveEncoder params
         )
         |> Serialize.variant1 TimersAddAndStart serializePosix
-        |> Serialize.variant0 TimersClear
         |> Serialize.variant2 TimersRename serializeTimerId Serialize.string
         |> Serialize.variant2 TimersSetActivity serializeTimerId (Serialize.maybe serializeActivity)
         |> Serialize.variant2 TimersSetCategory serializeTimerId (Serialize.maybe serializeCategory)

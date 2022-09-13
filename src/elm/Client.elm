@@ -59,7 +59,6 @@ type alias Model =
     , pending : Pending Remote
     , timersEdits : GenericDict.Dict TimerSet.TimerId TimerNameEdit
     , timersSelectState : Select.State
-    , clearConfirmation : ClearConfirmation
     }
 
 
@@ -129,9 +128,6 @@ type Msg
     | UpdateZone Time.Zone
     | UpdateZoneError TimeZone.Error
     | AddTimer
-    | ClearTimersInitiate
-    | ClearTimersCancel
-    | ClearTimersConfirm
     | HistoryEditStart { timerId : Maybe TimerSet.TimerId, start : Time.Posix, end : Time.Posix }
     | HistoryEditUpdateTimerId String
     | HistoryEditUpdateStartHours String
@@ -166,7 +162,6 @@ init { localStorage } _ _ =
       , historySelectedDate = SelectedDate.unselected
       , remote = { timerSet = Nothing }
       , pending = PendingIdle
-      , clearConfirmation = ClearConfirmationHidden
       , timersEdits = timerIdDict.empty
       , timersSelectState = Select.initState
       }
@@ -310,16 +305,6 @@ update msg model =
 
                 TimeInitialized { now } ->
                     enqueue (Api.TimersAddAndStart now) model
-
-        ClearTimersInitiate ->
-            ( { model | clearConfirmation = ClearConfirmationShown }, Cmd.none )
-
-        ClearTimersCancel ->
-            ( { model | clearConfirmation = ClearConfirmationHidden }, Cmd.none )
-
-        ClearTimersConfirm ->
-            { model | clearConfirmation = ClearConfirmationHidden }
-                |> enqueue Api.TimersClear
 
         HistoryEditStart { timerId, start, end } ->
             case model.time of
@@ -786,7 +771,7 @@ viewPaused =
     Html.Styled.text strings.paused
 
 
-viewTimers { now, zone } timerSet { clearConfirmation, timersEdits, timersSelectState } =
+viewTimers { now, zone } timerSet { timersEdits, timersSelectState } =
     let
         history =
             TimerSet.history timerSet
@@ -835,15 +820,6 @@ viewTimers { now, zone } timerSet { clearConfirmation, timersEdits, timersSelect
         ++ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) timers
         ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text strings.startNewTimer ]
            ]
-        ++ (case clearConfirmation of
-                ClearConfirmationHidden ->
-                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersInitiate ] [ Html.Styled.text strings.clearTimers ] ]
-
-                ClearConfirmationShown ->
-                    [ Html.Styled.button [ Html.Styled.Events.onClick ClearTimersCancel ] [ Html.Styled.text strings.clearTimersCancel ]
-                    , Html.Styled.button [ Html.Styled.Events.onClick ClearTimersConfirm ] [ Html.Styled.text strings.clearTimersConfirm ]
-                    ]
-           )
         ++ (if timerIdDict.isEmpty timersEdits then
                 []
 
@@ -1210,9 +1186,6 @@ strings =
     , total = "Total"
     , history = "History"
     , startNewTimer = "start new timer"
-    , clearTimers = "clear"
-    , clearTimersCancel = "cancel"
-    , clearTimersConfirm = "Are you sure?"
     , historyEditRange = " to "
     , historyEditConfirm = "Confirm"
     , error =
