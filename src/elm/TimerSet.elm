@@ -79,13 +79,13 @@ history (TimerSet timerSet) =
     timerSet.history
 
 
-addTimer : TimerSet -> ( TimerSet, TimerId )
-addTimer (TimerSet timerSet) =
+addTimer : String -> TimerSet -> ( TimerSet, TimerId )
+addTimer name (TimerSet timerSet) =
     ( TimerSet
         { timerSet
             | timers =
                 timerSet.timers
-                    ++ [ { name = ""
+                    ++ [ { name = name
                          , activity = Nothing
                          , category = Nothing
                          }

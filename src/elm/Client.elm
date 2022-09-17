@@ -58,6 +58,7 @@ type alias Model =
     , remote : Remote
     , pending : Pending Remote
     , timersEdits : GenericDict.Dict TimerSet.TimerId TimerNameEdit
+    , timersSelectInput : String
     , timersSelectState : Select.State
     }
 
@@ -114,6 +115,11 @@ type alias HistoryEdit =
     }
 
 
+type TimersSelectOption
+    = StartTimer TimerSet.TimerId
+    | AddTimer String
+
+
 type Error
     = TimeZoneError TimeZone.Error
     | ApiError Functions.SendError
@@ -127,7 +133,6 @@ type Msg
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | UpdateZoneError TimeZone.Error
-    | AddTimer
     | HistoryEditStart { timerId : Maybe TimerSet.TimerId, start : Time.Posix, end : Time.Posix }
     | HistoryEditUpdateTimerId String
     | HistoryEditUpdateStartHours String
@@ -138,7 +143,7 @@ type Msg
     | HistoryIncrementDate { days : Int }
     | TimerEditCommit TimerSet.TimerId
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
-    | TimerSelectMsg (Select.Msg TimerSet.TimerId)
+    | TimerSelectMsg (Select.Msg TimersSelectOption)
     | TimerToggleActivity TimerSet.TimerId TimerSet.Activity
     | TimerToggleCategory TimerSet.TimerId TimerSet.Category
     | UrlChange
@@ -163,6 +168,7 @@ init { localStorage } _ _ =
       , remote = { timerSet = Nothing }
       , pending = PendingIdle
       , timersEdits = timerIdDict.empty
+      , timersSelectInput = ""
       , timersSelectState = Select.initState
       }
     , Cmd.batch
@@ -297,14 +303,6 @@ update msg model =
 
         UrlRequest ->
             ( model, Cmd.none )
-
-        AddTimer ->
-            case model.time of
-                TimeUninitialized _ ->
-                    ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
-
-                TimeInitialized { now } ->
-                    enqueue (Api.TimersAddAndStart now) model
 
         HistoryEditStart { timerId, start, end } ->
             case model.time of
@@ -454,7 +452,7 @@ update msg model =
                 ( action, updatedState, updateCmd ) =
                     Select.update selectMsg model.timersSelectState
 
-                withUpdatedState =
+                withUpdatedSelectState =
                     { model
                         | timersSelectState = updatedState
                     }
@@ -462,24 +460,34 @@ update msg model =
                 ( withActionPerformed, actionCmd ) =
                     case action of
                         Nothing ->
-                            ( withUpdatedState, Cmd.none )
+                            ( withUpdatedSelectState, Cmd.none )
 
-                        Just (Select.InputChange _) ->
-                            ( withUpdatedState, Cmd.none )
+                        Just (Select.InputChange input) ->
+                            ( { withUpdatedSelectState | timersSelectInput = input }, Cmd.none )
 
-                        Just (Select.Select selectedTimerId) ->
-                            case withUpdatedState.time of
-                                TimeInitialized { now } ->
-                                    enqueue (Api.TimersSetActive { timerId = Just selectedTimerId, start = now, end = Nothing }) withUpdatedState
+                        Just (Select.Select selected) ->
+                            case selected of
+                                StartTimer selectedTimerId ->
+                                    case withUpdatedSelectState.time of
+                                        TimeInitialized { now } ->
+                                            enqueue (Api.TimersSetActive { timerId = Just selectedTimerId, start = now, end = Nothing }) withUpdatedSelectState
 
-                                TimeUninitialized _ ->
-                                    ( { withUpdatedState | errors = Uninitialized :: withUpdatedState.errors }, Cmd.none )
+                                        TimeUninitialized _ ->
+                                            ( { withUpdatedSelectState | errors = Uninitialized :: withUpdatedSelectState.errors }, Cmd.none )
+
+                                AddTimer name ->
+                                    case model.time of
+                                        TimeInitialized { now } ->
+                                            enqueue (Api.TimersAddAndStart { name = name, start = now }) withUpdatedSelectState
+
+                                        TimeUninitialized _ ->
+                                            ( { withUpdatedSelectState | errors = Uninitialized :: withUpdatedSelectState.errors }, Cmd.none )
 
                         Just (Select.DeselectMulti _) ->
-                            ( withUpdatedState, Cmd.none )
+                            ( withUpdatedSelectState, Cmd.none )
 
                         Just Select.ClearSingleSelectItem ->
-                            ( withUpdatedState, Cmd.none )
+                            ( withUpdatedSelectState, Cmd.none )
             in
             ( withActionPerformed
             , Cmd.batch
@@ -771,7 +779,7 @@ viewPaused =
     Html.Styled.text strings.paused
 
 
-viewTimers { now, zone } timerSet { timersEdits, timersSelectState } =
+viewTimers { now, zone } timerSet { timersEdits, timersSelectInput, timersSelectState } =
     let
         history =
             TimerSet.history timerSet
@@ -790,7 +798,7 @@ viewTimers { now, zone } timerSet { timersEdits, timersSelectState } =
     [ timers
         |> List.map
             (\timerId ->
-                { item = timerId
+                { item = StartTimer timerId
                 , label =
                     case TimerSet.get timerId timerSet of
                         Nothing ->
@@ -803,6 +811,16 @@ viewTimers { now, zone } timerSet { timersEdits, timersSelectState } =
                             else
                                 name
                 }
+            )
+        |> flip List.append
+            (if String.trim timersSelectInput /= "" then
+                [ { item = AddTimer (String.trim timersSelectInput)
+                  , label = strings.newTimer ++ timersSelectInput
+                  }
+                ]
+
+             else
+                []
             )
         |> flip Select.menuItems (Select.single Nothing)
         |> Select.state timersSelectState
@@ -818,8 +836,6 @@ viewTimers { now, zone } timerSet { timersEdits, timersSelectState } =
                     []
            )
         ++ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) timers
-        ++ [ Html.Styled.button [ Html.Styled.Events.onClick AddTimer ] [ Html.Styled.text strings.startNewTimer ]
-           ]
         ++ (if timerIdDict.isEmpty timersEdits then
                 []
 
@@ -1185,7 +1201,6 @@ strings =
     , abbreviationProductive = "P"
     , total = "Total"
     , history = "History"
-    , startNewTimer = "start new timer"
     , historyEditRange = " to "
     , historyEditConfirm = "Confirm"
     , error =
@@ -1243,6 +1258,7 @@ strings =
 
                 Uninitialized ->
                     "Uninitialized!"
+    , newTimer = "New timer: "
     }
 
 

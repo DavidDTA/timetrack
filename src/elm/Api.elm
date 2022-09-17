@@ -32,7 +32,7 @@ type Response
 
 
 type Update
-    = TimersAddAndStart Time.Posix
+    = TimersAddAndStart { name : String, start : Time.Posix }
     | TimersRename TimerSet.TimerId String
     | TimersSetActivity TimerSet.TimerId (Maybe TimerSet.Activity)
     | TimersSetCategory TimerSet.TimerId (Maybe TimerSet.Category)
@@ -45,12 +45,12 @@ type Update
 
 applyUpdate apiUpdate timerSet =
     case apiUpdate of
-        TimersAddAndStart timestamp ->
+        TimersAddAndStart { name, start } ->
             let
                 ( newTimerSet, newTimerId ) =
-                    TimerSet.addTimer timerSet
+                    TimerSet.addTimer name timerSet
             in
-            TimerSet.setTimer (Just newTimerId) timestamp Nothing newTimerSet
+            TimerSet.setTimer (Just newTimerId) start Nothing newTimerSet
 
         TimersRename timerId name ->
             TimerSet.updateTimer timerId (\timer -> { timer | name = String.trim name }) timerSet
@@ -154,7 +154,12 @@ serializeUpdate =
                 TimersSetActive params ->
                     timersSetActiveEncoder params
         )
-        |> Serialize.variant1 TimersAddAndStart serializePosix
+        |> Serialize.variant1 TimersAddAndStart
+            (Serialize.record (\name start -> { name = name, start = start })
+                |> Serialize.field .name Serialize.string
+                |> Serialize.field .start serializePosix
+                |> Serialize.finishRecord
+            )
         |> Serialize.variant2 TimersRename serializeTimerId Serialize.string
         |> Serialize.variant2 TimersSetActivity serializeTimerId (Serialize.maybe serializeActivity)
         |> Serialize.variant2 TimersSetCategory serializeTimerId (Serialize.maybe serializeCategory)
