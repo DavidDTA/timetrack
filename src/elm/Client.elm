@@ -637,7 +637,7 @@ globalCss { remote, time } =
         [ Css.Global.everything
             [ Css.margin Css.zero
             , Css.padding Css.zero
-            , Css.fontFamilies [ Css.qt "Nunito", Css.sansSerif.value ]
+            , Css.fontFamilies [ Css.qt "Nunito" ]
             ]
         , Css.Global.html
             [ Css.minHeight (Css.pct 100) -- Without this, background color transitions for the html don't happen properly in the area not covered by the body
@@ -745,7 +745,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "⭮" ]
+            [ Html.Styled.text "\u{21bb}" ]
         , Html.Styled.div
             [ Html.Styled.Attributes.css
                 (cellProperties
@@ -759,7 +759,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "⭯" ]
+            [ Html.Styled.text "\u{21ba}" ]
         ]
     ]
         ++ (errors
