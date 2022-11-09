@@ -678,20 +678,20 @@ globalCss { remote, time } =
 
 viewBody model =
     let
-        ( forceLoading, body ) =
+        body =
             case model.username of
                 EditingUsername _ ->
-                    ( False, viewAuthentication )
+                    viewAuthentication
 
                 SelectedUsername _ ->
                     case ( model.time, model.remote.timerSet ) of
                         ( TimeInitialized time, Just timerSet ) ->
-                            ( False, viewTimers time timerSet.value model ++ viewHistory time timerSet.value model )
+                            viewTimers time timerSet.value model ++ viewHistory time timerSet.value model
 
                         _ ->
-                            ( True, [] )
+                            []
     in
-    viewErrors forceLoading model ++ body
+    viewErrors model ++ body
 
 
 type LoadingState
@@ -700,7 +700,7 @@ type LoadingState
     | Idle
 
 
-viewErrors forceLoading { errors, pending } =
+viewErrors { errors, pending, remote, username } =
     let
         cellProperties =
             [ Css.property "grid-row" "1"
@@ -709,21 +709,27 @@ viewErrors forceLoading { errors, pending } =
             ]
 
         loadingState =
-            if forceLoading then
-                Waiting
+            case username of
+                EditingUsername _ ->
+                    Idle
 
-            else
-                case pending of
-                    PendingIdle ->
-                        Idle
+                SelectedUsername _ ->
+                    case remote.timerSet of
+                        Nothing ->
+                            Waiting
 
-                    Pending { current } ->
-                        case current of
-                            PendingOutstanding _ ->
-                                Waiting
+                        Just _ ->
+                            case pending of
+                                PendingIdle ->
+                                    Idle
 
-                            PendingError _ ->
-                                Retryable
+                                Pending { current } ->
+                                    case current of
+                                        PendingOutstanding _ ->
+                                            Waiting
+
+                                        PendingError _ ->
+                                            Retryable
     in
     [ Html.Styled.div
         [ Html.Styled.Events.onClick ApiRetry
