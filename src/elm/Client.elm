@@ -745,7 +745,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "\u{21bb}" ]
+            [ Html.Styled.text "↻" ]
         , Html.Styled.div
             [ Html.Styled.Attributes.css
                 (cellProperties
@@ -759,7 +759,7 @@ viewErrors forceLoading { errors, pending } =
                        ]
                 )
             ]
-            [ Html.Styled.text "\u{21ba}" ]
+            [ Html.Styled.text "↺" ]
         ]
     ]
         ++ (errors
