@@ -676,37 +676,20 @@ globalCss { remote, time } =
         ]
 
 
-viewBody model =
+viewBody ({ pending, remote, time, username } as model) =
     let
         body =
-            case model.username of
+            case username of
                 EditingUsername _ ->
                     viewAuthentication
 
                 SelectedUsername _ ->
-                    case ( model.time, model.remote.timerSet ) of
-                        ( TimeInitialized time, Just timerSet ) ->
-                            viewTimers time timerSet.value model ++ viewHistory time timerSet.value model
+                    case ( time, remote.timerSet ) of
+                        ( TimeInitialized initializedTime, Just timerSet ) ->
+                            viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
 
                         _ ->
                             []
-    in
-    viewLoading model ++ viewErrors model ++ body
-
-
-type LoadingState
-    = Waiting
-    | Retryable
-    | Idle
-
-
-viewLoading { pending, remote, username } =
-    let
-        cellProperties =
-            [ Css.property "grid-row" "1"
-            , Css.property "grid-column" "1"
-            , Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
-            ]
 
         loadingState =
             case username of
@@ -730,6 +713,23 @@ viewLoading { pending, remote, username } =
 
                                         PendingError _ ->
                                             Retryable
+    in
+    viewLoading loadingState ++ viewErrors model ++ body
+
+
+type LoadingState
+    = Waiting
+    | Retryable
+    | Idle
+
+
+viewLoading loadingState =
+    let
+        cellProperties =
+            [ Css.property "grid-row" "1"
+            , Css.property "grid-column" "1"
+            , Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
+            ]
     in
     [ Html.Styled.div
         [ Html.Styled.Events.onClick ApiRetry
