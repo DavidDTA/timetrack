@@ -457,6 +457,12 @@ update msg model =
                         | timersSelectState = updatedState
                     }
 
+                withClearedInput =
+                    { model
+                        | timersSelectState = updatedState
+                        , timersSelectInput = ""
+                    }
+
                 ( withActionPerformed, actionCmd ) =
                     case action of
                         Nothing ->
@@ -468,32 +474,32 @@ update msg model =
                         Just (Select.Select selected) ->
                             case selected of
                                 StartTimer selectedTimerId ->
-                                    case withUpdatedSelectState.time of
+                                    case model.time of
                                         TimeInitialized { now } ->
-                                            enqueue (Api.TimersSetActive { timerId = Just selectedTimerId, start = now, end = Nothing }) withUpdatedSelectState
+                                            enqueue (Api.TimersSetActive { timerId = Just selectedTimerId, start = now, end = Nothing }) withClearedInput
 
                                         TimeUninitialized _ ->
-                                            ( { withUpdatedSelectState | errors = Uninitialized :: withUpdatedSelectState.errors }, Cmd.none )
+                                            ( { withClearedInput | errors = Uninitialized :: model.errors }, Cmd.none )
 
                                 AddTimer name ->
                                     case model.time of
                                         TimeInitialized { now } ->
-                                            enqueue (Api.TimersAddAndStart { name = name, start = now }) withUpdatedSelectState
+                                            enqueue (Api.TimersAddAndStart { name = name, start = now }) withClearedInput
 
                                         TimeUninitialized _ ->
-                                            ( { withUpdatedSelectState | errors = Uninitialized :: withUpdatedSelectState.errors }, Cmd.none )
+                                            ( { withClearedInput | errors = Uninitialized :: model.errors }, Cmd.none )
 
                         Just (Select.DeselectMulti _) ->
-                            ( withUpdatedSelectState, Cmd.none )
+                            ( withClearedInput, Cmd.none )
 
                         Just Select.ClearSingleSelectItem ->
-                            ( withUpdatedSelectState, Cmd.none )
+                            ( withClearedInput, Cmd.none )
 
                         Just Select.FocusSet ->
                             ( withUpdatedSelectState, Cmd.none )
 
                         Just Select.MenuInputCleared ->
-                            ( withUpdatedSelectState, Cmd.none )
+                            ( withClearedInput, Cmd.none )
             in
             ( withActionPerformed
             , Cmd.batch
