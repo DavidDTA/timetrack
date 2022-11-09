@@ -678,31 +678,15 @@ globalCss { remote, time } =
 
 viewBody ({ pending, remote, time, username } as model) =
     let
-        body =
+        ( loadingState, body ) =
             case username of
                 EditingUsername _ ->
-                    viewAuthentication
+                    ( Idle, viewAuthentication )
 
                 SelectedUsername _ ->
                     case ( time, remote.timerSet ) of
                         ( TimeInitialized initializedTime, Just timerSet ) ->
-                            viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
-
-                        _ ->
-                            []
-
-        loadingState =
-            case username of
-                EditingUsername _ ->
-                    Idle
-
-                SelectedUsername _ ->
-                    case remote.timerSet of
-                        Nothing ->
-                            Waiting
-
-                        Just _ ->
-                            case pending of
+                            ( case pending of
                                 PendingIdle ->
                                     Idle
 
@@ -713,6 +697,11 @@ viewBody ({ pending, remote, time, username } as model) =
 
                                         PendingError _ ->
                                             Retryable
+                            , viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
+                            )
+
+                        _ ->
+                            ( Waiting, [] )
     in
     viewLoading loadingState ++ viewErrors model ++ body
 
