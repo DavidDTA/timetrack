@@ -169,7 +169,7 @@ init { localStorage } _ _ =
       , pending = PendingIdle
       , timersEdits = timerIdDict.empty
       , timersSelectInput = ""
-      , timersSelectState = Select.initState
+      , timersSelectState = Select.initState (Select.selectIdentifier "")
       }
     , Cmd.batch
         [ TimeZone.getZone
@@ -488,6 +488,12 @@ update msg model =
 
                         Just Select.ClearSingleSelectItem ->
                             ( withUpdatedSelectState, Cmd.none )
+
+                        Just Select.FocusSet ->
+                            ( withUpdatedSelectState, Cmd.none )
+
+                        Just Select.MenuInputCleared ->
+                            ( withUpdatedSelectState, Cmd.none )
             in
             ( withActionPerformed
             , Cmd.batch
@@ -798,25 +804,27 @@ viewTimers { now, zone } timerSet { timersEdits, timersSelectInput, timersSelect
     [ timers
         |> List.map
             (\timerId ->
-                { item = StartTimer timerId
-                , label =
-                    case TimerSet.get timerId timerSet of
-                        Nothing ->
-                            strings.unknownTimer
+                Select.basicMenuItem
+                    { item = StartTimer timerId
+                    , label =
+                        case TimerSet.get timerId timerSet of
+                            Nothing ->
+                                strings.unknownTimer
 
-                        Just { name } ->
-                            if name == "" then
-                                strings.unnamedTimer
+                            Just { name } ->
+                                if name == "" then
+                                    strings.unnamedTimer
 
-                            else
-                                name
-                }
+                                else
+                                    name
+                    }
             )
         |> flip List.append
             (if String.trim timersSelectInput /= "" then
-                [ { item = AddTimer (String.trim timersSelectInput)
-                  , label = strings.newTimer ++ timersSelectInput
-                  }
+                [ Select.basicMenuItem
+                    { item = AddTimer (String.trim timersSelectInput)
+                    , label = strings.newTimer ++ timersSelectInput
+                    }
                 ]
 
              else
@@ -825,7 +833,7 @@ viewTimers { now, zone } timerSet { timersEdits, timersSelectInput, timersSelect
         |> flip Select.menuItems (Select.single Nothing)
         |> Select.state timersSelectState
         |> Select.searchable True
-        |> flip Select.view (Select.selectIdentifier "")
+        |> Select.view
         |> Html.Styled.map TimerSelectMsg
     ]
         ++ (case currentTimer of
