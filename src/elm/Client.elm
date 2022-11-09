@@ -6,6 +6,7 @@ import Browser.Events
 import Browser.Navigation
 import Color
 import Css
+import Css.Animations
 import Css.Global
 import Css.Transitions
 import Date
@@ -754,6 +755,15 @@ viewErrors forceLoading { errors, pending } =
                              else
                                 Css.num 0
                             )
+                       , Css.animationName
+                            (Css.Animations.keyframes
+                                [ ( 0, [ Css.Animations.transform [ Css.rotate (Css.deg 0) ] ] )
+                                , ( 100, [ Css.Animations.transform [ Css.rotate (Css.deg 360) ] ] )
+                                ]
+                            )
+                       , Css.animationDuration (Css.sec (Duration.inSeconds durations.spinnerRotation))
+                       , Css.animationIterationCount Css.infinite
+                       , Css.property "animation-timing-function" "linear"
                        ]
                 )
             ]
@@ -1277,7 +1287,8 @@ strings =
 
 
 durations =
-    { transition = Duration.milliseconds 150
+    { spinnerRotation = Duration.milliseconds 800
+    , transition = Duration.milliseconds 150
     }
 
 
