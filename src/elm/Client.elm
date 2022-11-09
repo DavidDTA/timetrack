@@ -691,7 +691,7 @@ viewBody model =
                         _ ->
                             []
     in
-    viewErrors model ++ body
+    viewLoading model ++ viewErrors model ++ body
 
 
 type LoadingState
@@ -700,7 +700,7 @@ type LoadingState
     | Idle
 
 
-viewErrors { errors, pending, remote, username } =
+viewLoading { pending, remote, username } =
     let
         cellProperties =
             [ Css.property "grid-row" "1"
@@ -790,10 +790,12 @@ viewErrors { errors, pending, remote, username } =
             [ Html.Styled.text "↺" ]
         ]
     ]
-        ++ (errors
-                |> List.map strings.error
-                |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
-           )
+
+
+viewErrors { errors } =
+    errors
+        |> List.map strings.error
+        |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
 
 
 viewAuthentication =
