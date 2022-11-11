@@ -161,13 +161,13 @@ init { localStorage } _ _ =
                 |> Result.map (\username -> AuthenticationInitialized { username = username })
                 |> Result.withDefault (AuthenticationUninitialized { usernameInput = "" })
     in
-    ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
-      , authentication = authentication
+    ( { authentication = authentication
       , errors = []
       , historyEdit = Nothing
       , historySelectedDate = SelectedDate.unselected
       , remote = { timerSet = Nothing }
       , pending = PendingIdle
+      , time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , timersEdits = timerIdDict.empty
       , timersSelectInput = ""
       , timersSelectState = Select.initState (Select.selectIdentifier "")
