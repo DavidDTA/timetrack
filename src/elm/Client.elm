@@ -51,8 +51,8 @@ main =
 
 
 type alias Model =
-    { time : TimeModel
-    , username : Username
+    { authentication : Authentication
+    , time : TimeModel
     , errors : List Error
     , historyEdit : Maybe HistoryEdit
     , historySelectedDate : SelectedDate.SelectedDate
@@ -94,9 +94,9 @@ type TimeModel
         }
 
 
-type Username
-    = EditingUsername String
-    | SelectedUsername String
+type Authentication
+    = AuthenticationUninitialized { usernameInput : String }
+    | AuthenticationInitialized { username : String }
 
 
 type alias TimerNameEdit =
@@ -156,13 +156,13 @@ type Msg
 init : { localStorage : Json.Decode.Value } -> Url.Url -> Browser.Navigation.Key -> ( Model, Cmd Msg )
 init { localStorage } _ _ =
     let
-        username =
+        authentication =
             Json.Decode.decodeValue (Json.Decode.field localStorageKeys.username Json.Decode.string) localStorage
-                |> Result.map SelectedUsername
-                |> Result.withDefault (EditingUsername "")
+                |> Result.map (\username -> AuthenticationInitialized { username = username })
+                |> Result.withDefault (AuthenticationUninitialized { usernameInput = "" })
     in
     ( { time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
-      , username = username
+      , authentication = authentication
       , errors = []
       , historyEdit = Nothing
       , historySelectedDate = SelectedDate.unselected
@@ -175,11 +175,11 @@ init { localStorage } _ _ =
     , Cmd.batch
         [ TimeZone.getZone
             |> Task.attempt (Result.Extra.unpack UpdateZoneError (Tuple.second >> UpdateZone))
-        , case username of
-            SelectedUsername raw ->
-                fetchInitialState raw
+        , case authentication of
+            AuthenticationInitialized { username } ->
+                fetchInitialState username
 
-            EditingUsername _ ->
+            AuthenticationUninitialized _ ->
                 Cmd.none
         ]
     )
@@ -549,20 +549,20 @@ update msg model =
                 Nothing ->
                     ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
-        UsernameEdit username ->
-            ( { model | username = EditingUsername username }, Cmd.none )
+        UsernameEdit input ->
+            ( { model | authentication = AuthenticationUninitialized { usernameInput = input } }, Cmd.none )
 
         UsernameSubmit ->
-            case model.username of
-                EditingUsername username ->
-                    ( { model | username = SelectedUsername username }
+            case model.authentication of
+                AuthenticationUninitialized { usernameInput } ->
+                    ( { model | authentication = AuthenticationInitialized { username = usernameInput } }
                     , Cmd.batch
-                        [ fetchInitialState username
-                        , localStorageWrites ( localStorageKeys.username, username )
+                        [ fetchInitialState usernameInput
+                        , localStorageWrites ( localStorageKeys.username, usernameInput )
                         ]
                     )
 
-                SelectedUsername _ ->
+                AuthenticationInitialized _ ->
                     ( model, Cmd.none )
 
 
@@ -584,8 +584,8 @@ applyUpdate apiUpdate remote =
 
 
 enqueueAll updates model =
-    case ( model.username, model.remote.timerSet ) of
-        ( SelectedUsername username, Just { version } ) ->
+    case ( model.authentication, model.remote.timerSet ) of
+        ( AuthenticationInitialized { username }, Just { version } ) ->
             let
                 ( newPending, cmd ) =
                     case ( model.pending, updates ) of
@@ -676,14 +676,14 @@ globalCss { remote, time } =
         ]
 
 
-viewBody ({ pending, remote, time, username } as model) =
+viewBody ({ pending, remote, time, authentication } as model) =
     let
         ( loadingState, body ) =
-            case username of
-                EditingUsername _ ->
+            case authentication of
+                AuthenticationUninitialized _ ->
                     ( Idle, viewAuthentication )
 
-                SelectedUsername _ ->
+                AuthenticationInitialized _ ->
                     case ( time, remote.timerSet ) of
                         ( TimeInitialized initializedTime, Just timerSet ) ->
                             ( case pending of
