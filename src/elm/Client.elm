@@ -676,34 +676,43 @@ globalCss { remote, time } =
         ]
 
 
-viewBody ({ pending, remote, time, authentication } as model) =
+viewBody ({ authentication } as model) =
     let
-        ( loadingState, body ) =
-            case authentication of
-                AuthenticationUninitialized _ ->
-                    ( Idle, viewAuthentication )
-
-                AuthenticationInitialized _ ->
-                    case ( time, remote.timerSet ) of
-                        ( TimeInitialized initializedTime, Just timerSet ) ->
-                            ( case pending of
-                                PendingIdle ->
-                                    Idle
-
-                                Pending { current } ->
-                                    case current of
-                                        PendingOutstanding _ ->
-                                            Waiting
-
-                                        PendingError _ ->
-                                            Retryable
-                            , viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
-                            )
-
-                        _ ->
-                            ( Waiting, [] )
+        { loading, content } =
+            page model
     in
-    viewLoading loadingState ++ viewErrors model ++ body
+    viewLoading loading ++ viewErrors model ++ content
+
+
+page ({ authentication } as model) =
+    case authentication of
+        AuthenticationUninitialized _ ->
+            { loading = Idle, content = viewAuthentication }
+
+        AuthenticationInitialized _ ->
+            pageAuthenticated model
+
+
+pageAuthenticated ({ pending, remote, time } as model) =
+    case ( time, remote.timerSet ) of
+        ( TimeInitialized initializedTime, Just timerSet ) ->
+            { loading =
+                case pending of
+                    PendingIdle ->
+                        Idle
+
+                    Pending { current } ->
+                        case current of
+                            PendingOutstanding _ ->
+                                Waiting
+
+                            PendingError _ ->
+                                Retryable
+            , content = viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
+            }
+
+        _ ->
+            { loading = Waiting, content = [] }
 
 
 type LoadingState
