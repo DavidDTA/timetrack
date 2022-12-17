@@ -693,22 +693,18 @@ globalCss { remote, time } =
 
 
 viewBody ({ authentication } as model) =
-    let
-        { loading, content } =
-            viewPage model
-    in
     Html.Styled.div []
         [ viewMenu model
-        , viewLoading loading
+        , viewLoading model
         , viewErrors model
         ]
-        :: content
+        :: viewPage model
 
 
 viewPage ({ authentication } as model) =
     case authentication of
         AuthenticationUninitialized _ ->
-            { loading = Idle, content = viewAuthentication }
+            viewAuthentication
 
         AuthenticationInitialized _ ->
             viewPageAuthenticated model
@@ -719,35 +715,16 @@ viewPageAuthenticated ({ page, pending, remote, time } as model) =
         Home ->
             case ( time, remote.timerSet ) of
                 ( TimeInitialized initializedTime, Just timerSet ) ->
-                    { loading =
-                        case pending of
-                            PendingIdle ->
-                                Idle
-
-                            Pending { current } ->
-                                case current of
-                                    PendingOutstanding _ ->
-                                        Waiting
-
-                                    PendingError _ ->
-                                        Retryable
-                    , content = viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
-                    }
+                    viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
 
                 _ ->
-                    { loading = Waiting, content = [] }
+                    []
 
         Menu ->
-            { loading = Idle, content = [] }
+            []
 
         Errors ->
-            { loading = Idle, content = viewErrorsDetails model }
-
-
-type LoadingState
-    = Waiting
-    | Retryable
-    | Idle
+            viewErrorsDetails model
 
 
 viewMenu { page } =
@@ -767,70 +744,75 @@ viewMenu { page } =
         }
 
 
-viewLoading loadingState =
+viewLoading { pending } =
+    let
+        loading =
+            case pending of
+                PendingIdle ->
+                    False
+
+                Pending { current } ->
+                    case current of
+                        PendingOutstanding _ ->
+                            True
+
+                        PendingError _ ->
+                            False
+    in
     viewIcon
-        { onClick =
-            case loadingState of
-                Idle ->
-                    Nothing
-
-                Waiting ->
-                    Nothing
-
-                Retryable ->
-                    Just ApiRetry
+        { onClick = Nothing
         , content =
-            let
-                cellStyle opaque =
-                    Html.Styled.Attributes.css
-                        [ Css.property "grid-row" "1"
-                        , Css.property "grid-column" "1"
-                        , Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
-                        , Css.opacity
-                            (if opaque then
-                                Css.num 100
+            Html.Styled.div
+                [ Html.Styled.Attributes.css
+                    [ Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
+                    , Css.opacity
+                        (if loading then
+                            Css.num 100
 
-                             else
-                                Css.num 0
-                            )
-                        ]
-            in
-            Html.Styled.div [ Html.Styled.Attributes.css [ Css.property "display" "grid" ] ]
-                [ Html.Styled.div
-                    (List.concat
-                        [ [ cellStyle (loadingState == Waiting) ]
-                        , [ Html.Styled.Attributes.css
-                                [ Css.animationName
-                                    (Css.Animations.keyframes
-                                        [ ( 0, [ Css.Animations.transform [ Css.rotate (Css.deg 0) ] ] )
-                                        , ( 100, [ Css.Animations.transform [ Css.rotate (Css.deg 360) ] ] )
-                                        ]
-                                    )
-                                , Css.animationDuration (Css.sec (Duration.inSeconds durations.spinnerRotation))
-                                , Css.animationIterationCount Css.infinite
-                                , Css.property "animation-timing-function" "linear"
-                                ]
-                          ]
-                        ]
-                    )
-                    [ Html.Styled.text "↻" ]
-                , Html.Styled.div [ cellStyle (loadingState == Retryable) ] [ Html.Styled.text "↺" ]
+                         else
+                            Css.num 0
+                        )
+                    , Css.animationName
+                        (Css.Animations.keyframes
+                            [ ( 0, [ Css.Animations.transform [ Css.rotate (Css.deg 0) ] ] )
+                            , ( 100, [ Css.Animations.transform [ Css.rotate (Css.deg 360) ] ] )
+                            ]
+                        )
+                    , Css.animationDuration (Css.sec (Duration.inSeconds durations.spinnerRotation))
+                    , Css.animationIterationCount Css.infinite
+                    , Css.property "animation-timing-function" "linear"
+                    ]
                 ]
+                [ Html.Styled.text "↻" ]
         }
 
 
-viewErrors { errors } =
+viewErrors { errors, pending } =
+    let
+        retryable =
+            case pending of
+                PendingIdle ->
+                    False
+
+                Pending { current } ->
+                    case current of
+                        PendingOutstanding _ ->
+                            False
+
+                        PendingError _ ->
+                            True
+    in
     viewIcon
         { onClick = Just (Navigate Errors)
         , content =
             Html.Styled.div
                 [ Html.Styled.Attributes.css
                     [ Css.opacity
-                        (if errors == [] then
-                            Css.num 0
+                        (if retryable || errors /= [] then
+                            Css.num 100
 
                          else
-                            Css.num 100
+                            Css.num 0
                         )
                     ]
                 ]
@@ -873,6 +855,7 @@ viewErrorsDetails { errors } =
     errors
         |> List.map strings.error
         |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
+        |> (::) (viewIcon { onClick = Just ApiRetry, content = Html.Styled.text "↺" })
 
 
 viewAuthentication =
