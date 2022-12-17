@@ -273,7 +273,19 @@ update msg model =
                         PendingError failed ->
                             let
                                 ( model1, cmd1 ) =
-                                    enqueueAll failed { model | remote = base, pending = PendingIdle }
+                                    enqueueAll failed
+                                        { model
+                                            | errors = []
+                                            , remote = base
+                                            , pending = PendingIdle
+                                            , page =
+                                                case model.page of
+                                                    Errors :: tail ->
+                                                        tail
+
+                                                    _ ->
+                                                        model.page
+                                        }
 
                                 ( model2, cmd2 ) =
                                     enqueueAll (List.reverse queue) model1
