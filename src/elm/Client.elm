@@ -706,9 +706,9 @@ globalCss { remote, time } =
 
 viewBody ({ authentication } as model) =
     Html.Styled.div []
-        [ viewMenu model
-        , viewLoading model
-        , viewErrors model
+        [ viewMenuIcon model
+        , viewLoadingIcon model
+        , viewErrorsIcon model
         ]
         :: viewPage model
 
@@ -736,10 +736,10 @@ viewPageAuthenticated ({ page, pending, remote, time } as model) =
             []
 
         Errors ->
-            viewErrorsDetails model
+            viewErrors model
 
 
-viewMenu { page } =
+viewMenuIcon { page } =
     viewIcon
         { onClick =
             if page == [] then
@@ -756,7 +756,7 @@ viewMenu { page } =
         }
 
 
-viewLoading { pending } =
+viewLoadingIcon { pending } =
     let
         loading =
             case pending of
@@ -799,7 +799,7 @@ viewLoading { pending } =
         }
 
 
-viewErrors { errors, pending } =
+viewErrorsIcon { errors, pending } =
     let
         retryable =
             case pending of
@@ -863,7 +863,7 @@ viewIcon { onClick, content } =
         [ content ]
 
 
-viewErrorsDetails { errors } =
+viewErrors { errors } =
     errors
         |> List.map strings.error
         |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
