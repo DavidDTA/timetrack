@@ -57,6 +57,7 @@ type alias Model =
     , historyEdit : Maybe HistoryEdit
     , historySelectedDate : SelectedDate.SelectedDate
     , remote : Remote
+    , page : List Page
     , pending : Pending Remote
     , timersEdits : GenericDict.Dict TimerSet.TimerId TimerNameEdit
     , timersSelectInput : String
@@ -128,6 +129,12 @@ type Error
     | Uninitialized
 
 
+type Page
+    = Home
+    | Menu
+    | Errors
+
+
 type Msg
     = ApiResponse (Result Functions.SendError Api.Response)
     | ApiRetry
@@ -142,6 +149,8 @@ type Msg
     | HistoryEditUpdateEndMinutes String
     | HistoryEditCommit
     | HistoryIncrementDate { days : Int }
+    | Navigate Page
+    | NavigateBack
     | TimerEditCommit TimerSet.TimerId
     | TimerEditRename { timerId : TimerSet.TimerId, name : String }
     | TimerSelectMsg (Select.Msg TimersSelectOption)
@@ -167,6 +176,7 @@ init { localStorage } _ _ =
       , historySelectedDate = SelectedDate.unselected
       , remote = { timerSet = Nothing }
       , pending = PendingIdle
+      , page = []
       , time = TimeUninitialized { now = Nothing, zone = Just (TimeZone.america__new_york ()) }
       , timersEdits = timerIdDict.empty
       , timersSelectInput = ""
@@ -436,6 +446,12 @@ update msg model =
             , Cmd.none
             )
 
+        Navigate page ->
+            ( { model | page = page :: model.page }, Cmd.none )
+
+        NavigateBack ->
+            ( { model | page = List.drop 1 model.page }, Cmd.none )
+
         TimerEditCommit timerId ->
             case timerIdDict.get timerId model.timersEdits of
                 Nothing ->
@@ -679,40 +695,53 @@ globalCss { remote, time } =
 viewBody ({ authentication } as model) =
     let
         { loading, content } =
-            page model
+            viewPage model
     in
-    viewLoading loading ++ viewErrors model ++ content
+    Html.Styled.div []
+        [ viewMenu model
+        , viewLoading loading
+        , viewErrors model
+        ]
+        :: content
 
 
-page ({ authentication } as model) =
+viewPage ({ authentication } as model) =
     case authentication of
         AuthenticationUninitialized _ ->
             { loading = Idle, content = viewAuthentication }
 
         AuthenticationInitialized _ ->
-            pageAuthenticated model
+            viewPageAuthenticated model
 
 
-pageAuthenticated ({ pending, remote, time } as model) =
-    case ( time, remote.timerSet ) of
-        ( TimeInitialized initializedTime, Just timerSet ) ->
-            { loading =
-                case pending of
-                    PendingIdle ->
-                        Idle
+viewPageAuthenticated ({ page, pending, remote, time } as model) =
+    case Maybe.withDefault Home (List.head page) of
+        Home ->
+            case ( time, remote.timerSet ) of
+                ( TimeInitialized initializedTime, Just timerSet ) ->
+                    { loading =
+                        case pending of
+                            PendingIdle ->
+                                Idle
 
-                    Pending { current } ->
-                        case current of
-                            PendingOutstanding _ ->
-                                Waiting
+                            Pending { current } ->
+                                case current of
+                                    PendingOutstanding _ ->
+                                        Waiting
 
-                            PendingError _ ->
-                                Retryable
-            , content = viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
-            }
+                                    PendingError _ ->
+                                        Retryable
+                    , content = viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
+                    }
 
-        _ ->
-            { loading = Waiting, content = [] }
+                _ ->
+                    { loading = Waiting, content = [] }
+
+        Menu ->
+            { loading = Idle, content = [] }
+
+        Errors ->
+            { loading = Idle, content = viewErrorsDetails model }
 
 
 type LoadingState
@@ -721,76 +750,126 @@ type LoadingState
     | Idle
 
 
+viewMenu { page } =
+    viewIcon
+        { onClick =
+            if page == [] then
+                Nothing
+
+            else
+                Just NavigateBack
+        , content =
+            if page == [] then
+                Html.Styled.text "☰"
+
+            else
+                Html.Styled.div [ Html.Styled.Attributes.css [ Css.transform (Css.scaleX -1) ] ] [ Html.Styled.text "➜" ]
+        }
+
+
 viewLoading loadingState =
-    let
-        cellProperties =
-            [ Css.property "grid-row" "1"
-            , Css.property "grid-column" "1"
-            , Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
-            ]
-    in
-    [ Html.Styled.div
-        [ Html.Styled.Events.onClick ApiRetry
-        , Html.Styled.Attributes.css
-            [ Css.property "display" "grid"
-            , Css.width (Css.px 24)
-            , Css.height (Css.px 24)
-            , Css.fontSize (Css.px 24)
-            , Css.fontWeight Css.bold
-            , Css.lineHeight (Css.px 24)
-            , Css.margin Css.auto
-            , Css.textAlign Css.center
-            , Css.cursor
-                (if loadingState == Retryable then
-                    Css.pointer
+    viewIcon
+        { onClick =
+            case loadingState of
+                Idle ->
+                    Nothing
 
-                 else
-                    Css.default
-                )
-            ]
-        ]
-        [ Html.Styled.div
-            [ Html.Styled.Attributes.css
-                (cellProperties
-                    ++ [ Css.opacity
-                            (if loadingState == Waiting then
+                Waiting ->
+                    Nothing
+
+                Retryable ->
+                    Just ApiRetry
+        , content =
+            let
+                cellStyle opaque =
+                    Html.Styled.Attributes.css
+                        [ Css.property "grid-row" "1"
+                        , Css.property "grid-column" "1"
+                        , Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
+                        , Css.opacity
+                            (if opaque then
                                 Css.num 100
 
                              else
                                 Css.num 0
                             )
-                       , Css.animationName
-                            (Css.Animations.keyframes
-                                [ ( 0, [ Css.Animations.transform [ Css.rotate (Css.deg 0) ] ] )
-                                , ( 100, [ Css.Animations.transform [ Css.rotate (Css.deg 360) ] ] )
+                        ]
+            in
+            Html.Styled.div [ Html.Styled.Attributes.css [ Css.property "display" "grid" ] ]
+                [ Html.Styled.div
+                    (List.concat
+                        [ [ cellStyle (loadingState == Waiting) ]
+                        , [ Html.Styled.Attributes.css
+                                [ Css.animationName
+                                    (Css.Animations.keyframes
+                                        [ ( 0, [ Css.Animations.transform [ Css.rotate (Css.deg 0) ] ] )
+                                        , ( 100, [ Css.Animations.transform [ Css.rotate (Css.deg 360) ] ] )
+                                        ]
+                                    )
+                                , Css.animationDuration (Css.sec (Duration.inSeconds durations.spinnerRotation))
+                                , Css.animationIterationCount Css.infinite
+                                , Css.property "animation-timing-function" "linear"
                                 ]
-                            )
-                       , Css.animationDuration (Css.sec (Duration.inSeconds durations.spinnerRotation))
-                       , Css.animationIterationCount Css.infinite
-                       , Css.property "animation-timing-function" "linear"
-                       ]
-                )
-            ]
-            [ Html.Styled.text "↻" ]
-        , Html.Styled.div
-            [ Html.Styled.Attributes.css
-                (cellProperties
-                    ++ [ Css.opacity
-                            (if loadingState == Retryable then
-                                Css.num 100
-
-                             else
-                                Css.num 0
-                            )
-                       ]
-                )
-            ]
-            [ Html.Styled.text "↺" ]
-        ]
-    ]
+                          ]
+                        ]
+                    )
+                    [ Html.Styled.text "↻" ]
+                , Html.Styled.div [ cellStyle (loadingState == Retryable) ] [ Html.Styled.text "↺" ]
+                ]
+        }
 
 
 viewErrors { errors } =
+    viewIcon
+        { onClick = Just (Navigate Errors)
+        , content =
+            Html.Styled.div
+                [ Html.Styled.Attributes.css
+                    [ Css.opacity
+                        (if errors == [] then
+                            Css.num 0
+
+                         else
+                            Css.num 100
+                        )
+                    ]
+                ]
+                [ Html.Styled.text "⚠" ]
+        }
+
+
+viewIcon { onClick, content } =
+    Html.Styled.div
+        ([ Html.Styled.Attributes.css
+            [ Css.display Css.inlineBlock
+            , Css.width (Css.px 24)
+            , Css.height (Css.px 24)
+            , Css.margin (Css.px 8)
+            , Css.fontSize (Css.px 24)
+            , Css.textAlign Css.center
+            , Css.lineHeight (Css.px 24)
+            , Css.cursor
+                (case onClick of
+                    Just _ ->
+                        Css.pointer
+
+                    Nothing ->
+                        Css.default
+                )
+            ]
+         ]
+            ++ (case onClick of
+                    Just msg ->
+                        [ Html.Styled.Events.onClick msg ]
+
+                    Nothing ->
+                        []
+               )
+        )
+        [ content ]
+
+
+viewErrorsDetails { errors } =
     errors
         |> List.map strings.error
         |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
