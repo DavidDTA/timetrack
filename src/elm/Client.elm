@@ -932,13 +932,6 @@ viewTimers { now, zone } timerSet { timersEdits, timersSelectInput, timersSelect
         |> Select.view
         |> Html.Styled.map TimerSelectMsg
     ]
-        ++ (case currentTimer of
-                Nothing ->
-                    [ viewPaused ]
-
-                Just currentTimerId ->
-                    []
-           )
         ++ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) timers
         ++ (if timerIdDict.isEmpty timersEdits then
                 []
