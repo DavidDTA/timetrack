@@ -710,7 +710,13 @@ viewBody ({ authentication } as model) =
         , viewLoadingIcon model
         , viewErrorsIcon model
         ]
-        :: viewPage model
+        :: (case viewPage model of
+                Nothing ->
+                    [ Html.Styled.text strings.loading ]
+
+                Just content ->
+                    content
+           )
 
 
 viewPage ({ authentication } as model) =
@@ -727,26 +733,33 @@ viewPageAuthenticated ({ page, pending, remote, time } as model) =
         Home ->
             case ( time, remote.timerSet ) of
                 ( TimeInitialized initializedTime, Just timerSet ) ->
-                    viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model
+                    Just (viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model)
 
                 _ ->
-                    []
+                    Nothing
 
         Menu ->
-            []
+            case ( time, remote.timerSet ) of
+                ( TimeInitialized initializedTime, Just timerSet ) ->
+                    Just (viewMenu initializedTime timerSet.value model)
+
+                _ ->
+                    Nothing
 
         Errors ->
-            viewErrors model
+            Just (viewErrors model)
 
 
 viewMenuIcon { page } =
     viewIcon
         { onClick =
-            if page == [] then
-                Nothing
+            Just
+                (if page == [] then
+                    Navigate Menu
 
-            else
-                Just NavigateBack
+                 else
+                    NavigateBack
+                )
         , content =
             if page == [] then
                 Html.Styled.text "☰"
@@ -863,6 +876,17 @@ viewIcon { onClick, content } =
         [ content ]
 
 
+viewMenu { now } timerSet { timersEdits } =
+    List.concat
+        [ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) (TimerSet.listTimerIds timerSet)
+        , if timerIdDict.isEmpty timersEdits then
+            []
+
+          else
+            [ Html.Styled.text "*" ]
+        ]
+
+
 viewErrors { errors } =
     errors
         |> List.map strings.error
@@ -871,17 +895,18 @@ viewErrors { errors } =
 
 
 viewAuthentication =
-    [ Html.Styled.text (strings.enterUsernamePrompt ++ ": ")
-    , Html.Styled.input [ Html.Styled.Events.onInput UsernameEdit ] []
-    , Html.Styled.button [ Html.Styled.Events.onClick UsernameSubmit ] [ Html.Styled.text strings.submitUsername ]
-    ]
+    Just
+        [ Html.Styled.text (strings.enterUsernamePrompt ++ ": ")
+        , Html.Styled.input [ Html.Styled.Events.onInput UsernameEdit ] []
+        , Html.Styled.button [ Html.Styled.Events.onClick UsernameSubmit ] [ Html.Styled.text strings.submitUsername ]
+        ]
 
 
 viewPaused =
     Html.Styled.text strings.paused
 
 
-viewTimers { now, zone } timerSet { timersEdits, timersSelectInput, timersSelectState } =
+viewTimers { now, zone } timerSet { timersSelectInput, timersSelectState } =
     let
         history =
             TimerSet.history timerSet
@@ -932,13 +957,6 @@ viewTimers { now, zone } timerSet { timersEdits, timersSelectInput, timersSelect
         |> Select.view
         |> Html.Styled.map TimerSelectMsg
     ]
-        ++ List.map (\id -> viewTimer now (timerIdDict.get id timersEdits) timerSet id) timers
-        ++ (if timerIdDict.isEmpty timersEdits then
-                []
-
-            else
-                [ Html.Styled.text "*" ]
-           )
 
 
 startOfDay zone date =
@@ -1300,6 +1318,7 @@ strings =
     , history = "History"
     , historyEditRange = " to "
     , historyEditConfirm = "Confirm"
+    , loading = "Loading..."
     , error =
         \error ->
             case error of
