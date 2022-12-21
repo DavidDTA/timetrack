@@ -921,23 +921,26 @@ viewTimerSelect { now, zone } timerSet { timersSelectInput, timersSelectState } 
                 |> List.filterMap Tuple.second
                 |> flip List.append (TimerSet.listTimerIds timerSet)
                 |> List.Extra.unique
+                |> List.filter (\timerId -> Just timerId /= currentTimer)
+
+        label timerId =
+            case TimerSet.get timerId timerSet of
+                Nothing ->
+                    strings.unknownTimer
+
+                Just { name } ->
+                    if name == "" then
+                        strings.unnamedTimer
+
+                    else
+                        name
     in
     [ timers
         |> List.map
             (\timerId ->
                 Select.basicMenuItem
                     { item = StartTimer timerId
-                    , label =
-                        case TimerSet.get timerId timerSet of
-                            Nothing ->
-                                strings.unknownTimer
-
-                            Just { name } ->
-                                if name == "" then
-                                    strings.unnamedTimer
-
-                                else
-                                    name
+                    , label = label timerId
                     }
             )
         |> flip List.append
@@ -951,7 +954,18 @@ viewTimerSelect { now, zone } timerSet { timersSelectInput, timersSelectState } 
              else
                 []
             )
-        |> flip Select.menuItems (Select.single Nothing)
+        |> flip Select.menuItems
+            (Select.single
+                (Maybe.map
+                    (\justCurrentTimer ->
+                        Select.basicMenuItem
+                            { item = StartTimer justCurrentTimer
+                            , label = label justCurrentTimer
+                            }
+                    )
+                    currentTimer
+                )
+            )
         |> Select.state timersSelectState
         |> Select.searchable True
         |> Select.view
