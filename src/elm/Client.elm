@@ -1,5 +1,6 @@
 port module Client exposing (main)
 
+import Accessibility.Styled
 import Api
 import Browser
 import Browser.Events
@@ -655,8 +656,8 @@ maybeInitialize { now, zone } =
 view model =
     { title = strings.appTitle
     , body =
-        [ Html.Styled.toUnstyled
-            (Html.Styled.div
+        [ Accessibility.Styled.toUnstyled
+            (Accessibility.Styled.div
                 []
                 ([ Html.Styled.node "link"
                     [ Html.Styled.Attributes.href "https://fonts.googleapis.com/css?family=Nunito"
@@ -705,14 +706,14 @@ globalCss { remote, time } =
 
 
 viewBody ({ authentication } as model) =
-    Html.Styled.div []
+    Accessibility.Styled.div []
         [ viewMenuIcon model
         , viewLoadingIcon model
         , viewErrorsIcon model
         ]
         :: (case viewPage model of
                 Nothing ->
-                    [ Html.Styled.text strings.loading ]
+                    [ Accessibility.Styled.text strings.loading ]
 
                 Just content ->
                     content
@@ -722,7 +723,7 @@ viewBody ({ authentication } as model) =
 viewPage ({ authentication } as model) =
     case authentication of
         AuthenticationUninitialized _ ->
-            viewAuthentication
+            viewAuthentication model
 
         AuthenticationInitialized _ ->
             viewPageAuthenticated model
@@ -762,10 +763,10 @@ viewMenuIcon { page } =
                 )
         , content =
             if page == [] then
-                Html.Styled.text "☰"
+                Accessibility.Styled.text "☰"
 
             else
-                Html.Styled.div [ Html.Styled.Attributes.css [ Css.transform (Css.scaleX -1) ] ] [ Html.Styled.text "➜" ]
+                Accessibility.Styled.div [ Html.Styled.Attributes.css [ Css.transform (Css.scaleX -1) ] ] [ Accessibility.Styled.text "➜" ]
         }
 
 
@@ -787,7 +788,7 @@ viewLoadingIcon { pending } =
     viewIcon
         { onClick = Nothing
         , content =
-            Html.Styled.div
+            Accessibility.Styled.div
                 [ Html.Styled.Attributes.css
                     [ Css.Transitions.transition [ Css.Transitions.opacity (Duration.inMilliseconds durations.transition) ]
                     , Css.opacity
@@ -808,7 +809,7 @@ viewLoadingIcon { pending } =
                     , Css.property "animation-timing-function" "linear"
                     ]
                 ]
-                [ Html.Styled.text "↻" ]
+                [ Accessibility.Styled.text "↻" ]
         }
 
 
@@ -828,9 +829,14 @@ viewErrorsIcon { errors, pending } =
                             True
     in
     viewIcon
-        { onClick = Just (Navigate Errors)
+        { onClick =
+            if retryable then
+                Just (Navigate Errors)
+
+            else
+                Nothing
         , content =
-            Html.Styled.div
+            Accessibility.Styled.div
                 [ Html.Styled.Attributes.css
                     [ Css.opacity
                         (if retryable || errors /= [] then
@@ -841,12 +847,12 @@ viewErrorsIcon { errors, pending } =
                         )
                     ]
                 ]
-                [ Html.Styled.text "⚠" ]
+                [ Accessibility.Styled.text "⚠" ]
         }
 
 
 viewIcon { onClick, content } =
-    Html.Styled.div
+    Accessibility.Styled.button
         ([ Html.Styled.Attributes.css
             [ Css.display Css.inlineBlock
             , Css.width (Css.px 24)
@@ -855,14 +861,9 @@ viewIcon { onClick, content } =
             , Css.fontSize (Css.px 24)
             , Css.textAlign Css.center
             , Css.lineHeight (Css.px 24)
-            , Css.cursor
-                (case onClick of
-                    Just _ ->
-                        Css.pointer
-
-                    Nothing ->
-                        Css.default
-                )
+            , Css.backgroundColor Css.transparent
+            , Css.border Css.zero
+            , Css.color Css.inherit
             ]
          ]
             ++ (case onClick of
@@ -870,7 +871,7 @@ viewIcon { onClick, content } =
                         [ Html.Styled.Events.onClick msg ]
 
                     Nothing ->
-                        []
+                        [ Html.Styled.Attributes.disabled True ]
                )
         )
         [ content ]
@@ -883,27 +884,35 @@ viewMenu { now } timerSet { timersEdits } =
             []
 
           else
-            [ Html.Styled.text "*" ]
+            [ Accessibility.Styled.text "*" ]
         ]
 
 
 viewErrors { errors } =
     errors
         |> List.map strings.error
-        |> List.map (\error -> Html.Styled.div [] [ Html.Styled.text error ])
-        |> (::) (viewIcon { onClick = Just ApiRetry, content = Html.Styled.text "↺" })
+        |> List.map (\error -> Accessibility.Styled.div [] [ Accessibility.Styled.text error ])
+        |> (::) (viewIcon { onClick = Just ApiRetry, content = Accessibility.Styled.text "↺" })
 
 
-viewAuthentication =
+viewAuthentication { authentication } =
     Just
-        [ Html.Styled.text (strings.enterUsernamePrompt ++ ": ")
-        , Html.Styled.input [ Html.Styled.Events.onInput UsernameEdit ] []
-        , Html.Styled.button [ Html.Styled.Events.onClick UsernameSubmit ] [ Html.Styled.text strings.submitUsername ]
+        [ Accessibility.Styled.text (strings.enterUsernamePrompt ++ ": ")
+        , Accessibility.Styled.inputText
+            (case authentication of
+                AuthenticationUninitialized { usernameInput } ->
+                    usernameInput
+
+                AuthenticationInitialized _ ->
+                    ""
+            )
+            [ Html.Styled.Events.onInput UsernameEdit ]
+        , Accessibility.Styled.button [ Html.Styled.Events.onClick UsernameSubmit ] [ Accessibility.Styled.text strings.submitUsername ]
         ]
 
 
 viewPaused =
-    Html.Styled.text strings.paused
+    Accessibility.Styled.text strings.paused
 
 
 viewTimerSelect { now, zone } timerSet { timersSelectInput, timersSelectState } =
@@ -969,7 +978,7 @@ viewTimerSelect { now, zone } timerSet { timersSelectInput, timersSelectState } 
         |> Select.state timersSelectState
         |> Select.searchable True
         |> Select.view
-        |> Html.Styled.map TimerSelectMsg
+        |> Accessibility.Styled.map TimerSelectMsg
     ]
 
 
@@ -987,14 +996,17 @@ startOfDay zone date =
 
 
 viewHistoryItem zone timerSet { value, start, duration } =
-    Html.Styled.div
-        [ Html.Styled.Events.onClick (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration })
-        ]
-        [ viewTimestamp zone start
-        , Html.Styled.text " "
-        , value
-            |> timerDisplayName timerSet
-            |> Html.Styled.text
+    Accessibility.Styled.div []
+        [ Accessibility.Styled.button
+            [ Html.Styled.Events.onClick (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration })
+            , Html.Styled.Attributes.css [ Css.backgroundColor Css.transparent, Css.border Css.zero ]
+            ]
+            [ viewTimestamp zone start
+            , Accessibility.Styled.text " "
+            , value
+                |> timerDisplayName timerSet
+                |> Accessibility.Styled.text
+            ]
         ]
 
 
@@ -1005,7 +1017,7 @@ viewHistoryEdit timerSet historyEdit =
 
         Just { originalTimerId, originalStart, originalEnd, zone } ->
             viewTimeSelect HistoryEditUpdateStartHours HistoryEditUpdateStartMinutes zone originalStart
-                ++ [ Html.Styled.text strings.historyEditRange ]
+                ++ [ Accessibility.Styled.text strings.historyEditRange ]
                 ++ viewTimeSelect HistoryEditUpdateEndHours HistoryEditUpdateEndMinutes zone originalEnd
                 ++ [ viewSelect HistoryEditUpdateTimerId
                         ({ value = ""
@@ -1025,24 +1037,24 @@ viewHistoryEdit timerSet historyEdit =
                                         )
                                )
                         )
-                   , Html.Styled.button
+                   , Accessibility.Styled.button
                         [ Html.Styled.Events.onClick HistoryEditCommit
                         ]
-                        [ Html.Styled.text strings.historyEditConfirm ]
+                        [ Accessibility.Styled.text strings.historyEditConfirm ]
                    ]
 
 
 viewSelect onInput options =
-    Html.Styled.select
+    Accessibility.Styled.select
         [ Html.Styled.Events.onInput onInput
         ]
         (List.map
             (\option ->
-                Html.Styled.option
+                Accessibility.Styled.option
                     [ Html.Styled.Attributes.value option.value
                     , Html.Styled.Attributes.selected option.selected
                     ]
-                    [ Html.Styled.text option.label ]
+                    [ Accessibility.Styled.text option.label ]
             )
             options
         )
@@ -1089,9 +1101,9 @@ viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
                 |> List.reverse
 
         viewTotalLine text predicate =
-            Html.Styled.div []
+            Accessibility.Styled.div []
                 [ viewDuration (sumDuration predicate dayStart (timeMin now dayEnd) history)
-                , Html.Styled.text (" " ++ text)
+                , Accessibility.Styled.text (" " ++ text)
                 ]
 
         actCatPred prop val =
@@ -1116,21 +1128,21 @@ viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
                 history
                 |> List.reverse
     in
-    [ Html.Styled.h1 []
+    [ Accessibility.Styled.h1 []
         [ historySelectedDate
             |> SelectedDate.getDate now zone
             |> Date.toIsoString
-            |> Html.Styled.text
+            |> Accessibility.Styled.text
         ]
-    , Html.Styled.div []
-        [ Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = -1 }) ] [ Html.Styled.text strings.previous ]
-        , Html.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Html.Styled.text strings.next ]
+    , Accessibility.Styled.div []
+        [ Accessibility.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = -1 }) ] [ Accessibility.Styled.text strings.previous ]
+        , Accessibility.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Accessibility.Styled.text strings.next ]
         ]
     ]
-        ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.history ] ]
+        ++ [ Accessibility.Styled.h2 [] [ Accessibility.Styled.text strings.history ] ]
         ++ viewHistoryEdit timerSet historyEdit
         ++ List.map (viewHistoryItem zone timerSet) dailyHistory
-        ++ [ Html.Styled.h2 [] [ Html.Styled.text strings.totals ] ]
+        ++ [ Accessibility.Styled.h2 [] [ Accessibility.Styled.text strings.totals ] ]
         ++ List.map
             (\timerId ->
                 viewTotalLine
@@ -1154,7 +1166,7 @@ viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
 
 
 viewActCatToggle factory id currentValue newValue text =
-    Html.Styled.button
+    Accessibility.Styled.button
         [ Html.Styled.Events.onClick (factory id newValue)
         , Html.Styled.Attributes.css
             [ Css.backgroundColor
@@ -1166,7 +1178,7 @@ viewActCatToggle factory id currentValue newValue text =
                 )
             ]
         ]
-        [ Html.Styled.text text
+        [ Accessibility.Styled.text text
         ]
 
 
@@ -1198,29 +1210,27 @@ viewTimer now edit timerSet id =
     in
     case TimerSet.get id timerSet of
         Nothing ->
-            Html.Styled.div [] [ Html.Styled.text strings.unknownTimer ]
+            Accessibility.Styled.div [] [ Accessibility.Styled.text strings.unknownTimer ]
 
         Just { name, activity, category } ->
-            Html.Styled.div []
-                [ Html.Styled.input
-                    [ Html.Styled.Attributes.placeholder strings.unnamedTimer
-                    , Html.Styled.Attributes.value
-                        (case edit of
-                            Nothing ->
-                                name
+            Accessibility.Styled.div []
+                [ Accessibility.Styled.inputText
+                    (case edit of
+                        Nothing ->
+                            name
 
-                            Just nameEdit ->
-                                nameEdit.name
-                        )
+                        Just nameEdit ->
+                            nameEdit.name
+                    )
+                    [ Html.Styled.Attributes.placeholder strings.unnamedTimer
                     , Html.Styled.Events.onInput (\updatedName -> TimerEditRename { timerId = id, name = updatedName })
                     , Html.Styled.Events.onBlur (TimerEditCommit id)
                     ]
-                    []
-                , Html.Styled.text " "
+                , Accessibility.Styled.text " "
                 , viewActCatToggle TimerToggleActivity id activity TimerSet.Active strings.abbreviationActive
                 , viewActCatToggle TimerToggleActivity id activity TimerSet.Reactive strings.abbreviationReactive
                 , viewActCatToggle TimerToggleActivity id activity TimerSet.Proactive strings.abbreviationProactive
-                , Html.Styled.text " "
+                , Accessibility.Styled.text " "
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Operational strings.abbreviationOperational
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Helpful strings.abbreviationHelpful
                 , viewActCatToggle TimerToggleCategory id category TimerSet.Productive strings.abbreviationProductive
@@ -1241,9 +1251,9 @@ viewTimestamp zone time =
         hundredths =
             Time.toMillis zone time // 10
     in
-    Html.Styled.span []
-        [ Html.Styled.text (pad hours ++ ":" ++ pad minutes ++ ":" ++ pad seconds)
-        , Html.Styled.small [] [ Html.Styled.text ("." ++ pad hundredths) ]
+    Accessibility.Styled.span []
+        [ Accessibility.Styled.text (pad hours ++ ":" ++ pad minutes ++ ":" ++ pad seconds)
+        , Accessibility.Styled.small [] [ Accessibility.Styled.text ("." ++ pad hundredths) ]
         ]
 
 
@@ -1270,9 +1280,9 @@ viewDuration duration =
         hundredths =
             duration |> Quantity.minus secondsQuantity |> Duration.inMilliseconds |> (\x -> x / 10) |> floor
     in
-    Html.Styled.span []
-        [ Html.Styled.text (String.fromInt hours ++ ":" ++ pad minutes ++ ":" ++ pad seconds)
-        , Html.Styled.small [] [ Html.Styled.text ("." ++ pad hundredths) ]
+    Accessibility.Styled.span []
+        [ Accessibility.Styled.text (String.fromInt hours ++ ":" ++ pad minutes ++ ":" ++ pad seconds)
+        , Accessibility.Styled.small [] [ Accessibility.Styled.text ("." ++ pad hundredths) ]
         ]
 
 
