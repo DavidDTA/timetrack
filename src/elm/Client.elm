@@ -733,7 +733,7 @@ viewPageAuthenticated ({ page, pending, remote, time } as model) =
         Home ->
             case ( time, remote.timerSet ) of
                 ( TimeInitialized initializedTime, Just timerSet ) ->
-                    Just (viewTimers initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model)
+                    Just (viewTimerSelect initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model)
 
                 _ ->
                     Nothing
@@ -906,7 +906,7 @@ viewPaused =
     Html.Styled.text strings.paused
 
 
-viewTimers { now, zone } timerSet { timersSelectInput, timersSelectState } =
+viewTimerSelect { now, zone } timerSet { timersSelectInput, timersSelectState } =
     let
         history =
             TimerSet.history timerSet
