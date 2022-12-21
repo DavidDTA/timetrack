@@ -133,6 +133,7 @@ type Error
 type Page
     = Home
     | Menu
+    | Calendar
     | Errors
 
 
@@ -708,6 +709,7 @@ globalCss { remote, time } =
 viewBody ({ authentication } as model) =
     Accessibility.Styled.div []
         [ viewMenuIcon model
+        , viewCalendarIcon
         , viewLoadingIcon model
         , viewErrorsIcon model
         ]
@@ -747,6 +749,9 @@ viewPageAuthenticated ({ page, pending, remote, time } as model) =
                 _ ->
                     Nothing
 
+        Calendar ->
+            Nothing
+
         Errors ->
             Just (viewErrors model)
 
@@ -767,6 +772,15 @@ viewMenuIcon { page } =
 
             else
                 Accessibility.Styled.div [ Html.Styled.Attributes.css [ Css.transform (Css.scaleX -1) ] ] [ Accessibility.Styled.text "➜" ]
+        }
+
+
+viewCalendarIcon =
+    viewIcon
+        { onClick =
+            Just (Navigate Calendar)
+        , content =
+            Accessibility.Styled.text "📅"
         }
 
 
