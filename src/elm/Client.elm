@@ -22,6 +22,7 @@ import Json.Encode
 import List.Extra
 import Material.Icons.Toggle
 import Maybe.Extra
+import Pixels
 import Quantity
 import Result.Extra
 import Select
@@ -750,7 +751,12 @@ viewPageAuthenticated ({ page, pending, remote, time } as model) =
                     Nothing
 
         Calendar ->
-            Nothing
+            case ( time, remote.timerSet ) of
+                ( TimeInitialized initializedTime, Just timerSet ) ->
+                    Just (viewCalendar initializedTime timerSet.value model)
+
+                _ ->
+                    Nothing
 
         Errors ->
             Just (viewErrors model)
@@ -1009,6 +1015,10 @@ startOfDay zone date =
         }
 
 
+endOfDay zone date =
+    startOfDay zone (Date.add Date.Days 1 date)
+
+
 viewHistoryItem zone timerSet { value, start, duration } =
     Accessibility.Styled.div []
         [ Accessibility.Styled.button
@@ -1094,6 +1104,217 @@ timerDisplayName timerSet timerId =
         |> Maybe.Extra.unwrap strings.paused (Maybe.Extra.unwrap strings.unknownTimer .name)
 
 
+viewCalendar { now, zone } timerSet { historySelectedDate } =
+    let
+        pixelsPerHour =
+            Pixels.pixels 40 |> Quantity.per Duration.hour
+
+        leftMargin =
+            Pixels.pixels 60
+
+        leftIndentMargin =
+            leftMargin
+                |> Quantity.plus (Pixels.pixels 24)
+
+        minEventDuration =
+            Duration.minutes 10
+
+        date =
+            historySelectedDate
+                |> SelectedDate.getDate now zone
+
+        dayStart =
+            startOfDay zone date
+
+        dayEnd =
+            endOfDay zone date
+
+        history =
+            TimerSet.history timerSet
+
+        dailyHistory =
+            history
+                |> Timeline.fold { singles = [], clusters = [] }
+                    (\({ start, duration, value } as entry) acc ->
+                        if duration |> Quantity.greaterThanOrEqualTo minEventDuration then
+                            { acc | singles = entry :: acc.singles }
+
+                        else
+                            { acc
+                                | clusters =
+                                    case acc.clusters of
+                                        [] ->
+                                            [ { start = start, duration = duration, entries = [ entry ] } ]
+
+                                        head :: tail ->
+                                            if Duration.addTo head.start head.duration == start then
+                                                { start = head.start, duration = Quantity.plus head.duration duration, entries = entry :: head.entries } :: tail
+
+                                            else
+                                                { start = start, duration = duration, entries = [ entry ] } :: acc.clusters
+                            }
+                    )
+                    dayStart
+                    dayEnd
+
+        hours =
+            Time.Extra.range Time.Extra.Hour 1 zone dayStart (Time.Extra.add Time.Extra.Hour 1 zone dayEnd)
+
+        timeChange =
+            hours
+                |> List.map (\hour -> Time.Extra.toOffset zone hour)
+                |> List.Extra.unique
+                |> List.length
+                |> flip (>) 1
+
+        labels =
+            hours
+                |> List.map
+                    (\hour ->
+                        let
+                            twentyFourHour =
+                                Time.toHour zone hour
+
+                            timeLabel =
+                                if twentyFourHour == 0 then
+                                    "12am"
+
+                                else if twentyFourHour < 12 then
+                                    String.fromInt twentyFourHour ++ "am"
+
+                                else if twentyFourHour == 12 then
+                                    "12pm"
+
+                                else
+                                    String.fromInt (twentyFourHour - 12) ++ "pm"
+
+                            offsetLabel =
+                                if timeChange then
+                                    let
+                                        offsetMinutes =
+                                            Time.Extra.toOffset zone hour
+
+                                        offsetHours =
+                                            toFloat offsetMinutes / 60
+                                    in
+                                    " (UTC"
+                                        ++ (if offsetHours >= 0 then
+                                                "+"
+
+                                            else
+                                                ""
+                                           )
+                                        ++ String.fromFloat offsetHours
+                                        ++ ")"
+
+                                else
+                                    ""
+                        in
+                        Tuple.pair hour (timeLabel ++ offsetLabel)
+                    )
+
+        pixelOffset time =
+            Duration.from dayStart time
+                |> Quantity.at pixelsPerHour
+
+        block start duration left color title =
+            let
+                top =
+                    pixelOffset start
+
+                height =
+                    Duration.addTo start duration |> pixelOffset |> Quantity.minus top
+            in
+            Accessibility.Styled.div
+                [ Html.Styled.Attributes.css
+                    [ Css.position Css.absolute
+                    , Css.top (Css.px (top |> Pixels.toFloat))
+                    , Css.height (Css.px (height |> Pixels.toFloat))
+                    , Css.left (Css.px (Pixels.toFloat left))
+                    , Css.right Css.zero
+                    , Css.backgroundColor color
+                    , Css.overflow Css.hidden
+                    ]
+                ]
+                [ Accessibility.Styled.text title ]
+    in
+    [ Accessibility.Styled.div
+        [ Html.Styled.Attributes.css
+            [ Css.height (Css.px 960)
+            , Css.position Css.relative
+            ]
+        ]
+        ((labels
+            |> List.drop 1
+            |> List.map
+                (\( hour, label ) ->
+                    Accessibility.Styled.div
+                        [ Html.Styled.Attributes.css
+                            [ Css.position Css.absolute
+                            , Css.width (Css.pct 100)
+                            , Css.bottom
+                                (Css.calc (Css.pct 100)
+                                    Css.minus
+                                    (Css.px (Pixels.toFloat (pixelOffset hour)))
+                                )
+                            , Css.borderBottomWidth (Css.px 1)
+                            , Css.borderBottomStyle Css.solid
+                            , Css.borderBottomColor colors.gridline
+                            ]
+                        ]
+                        [ Accessibility.Styled.text label ]
+                )
+         )
+            ++ (dailyHistory.singles
+                    |> List.map
+                        (\{ start, duration, value } ->
+                            block start
+                                duration
+                                leftMargin
+                                (case value of
+                                    Nothing ->
+                                        colors.paused
+
+                                    Just timerId ->
+                                        colors.jewel (TimerSet.timerIdToRaw timerId)
+                                )
+                                (timerDisplayName timerSet value)
+                        )
+               )
+            ++ (dailyHistory.clusters
+                    |> List.map
+                        (\{ start, duration } ->
+                            let
+                                blockStart =
+                                    if duration |> Quantity.lessThan minEventDuration then
+                                        minEventDuration
+                                            |> Quantity.minus duration
+                                            |> Quantity.divideBy 2
+                                            |> Duration.subtractFrom start
+                                            |> posixMin (Duration.subtractFrom dayEnd minEventDuration)
+                                            |> posixMax dayStart
+
+                                    else
+                                        start
+
+                                blockDuration =
+                                    Quantity.max minEventDuration duration
+                            in
+                            block blockStart blockDuration leftIndentMargin colors.cluster strings.cluster
+                        )
+               )
+        )
+    ]
+
+
+posixMin a b =
+    Time.millisToPosix (min (Time.posixToMillis a) (Time.posixToMillis b))
+
+
+posixMax a b =
+    Time.millisToPosix (max (Time.posixToMillis a) (Time.posixToMillis b))
+
+
 viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
     let
         date =
@@ -1104,7 +1325,7 @@ viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
             startOfDay zone date
 
         dayEnd =
-            startOfDay zone (Date.add Date.Days 1 date)
+            endOfDay zone date
 
         history =
             TimerSet.history timerSet
@@ -1325,14 +1546,43 @@ rawColors =
     , spanishGreen = Css.rgb 16 150 72
     , blackCoral = Css.rgb 94 105 115
     , silver = Css.rgb 201 201 201
+    , emeraldGreen = Css.hex "50C878"
+    , sapphireBlue = Css.hex "0F52BA"
+    , amethystPurple = Css.hex "9B30FF"
+    , rubyRed = Css.hex "DF0101"
+    , topazYellow = Css.hex "FFC125"
+    , turquoise = Css.hex "40E0D0"
+    , charcoalGrey = Css.hex "36454F"
     }
 
 
 colors =
-    { running = rawColors.spanishGreen
+    { gridline = rawColors.silver
+    , running = rawColors.spanishGreen
     , paused = rawColors.blackCoral
     , toggleOff = rawColors.silver
     , toggleOn = rawColors.middleBlue
+    , jewel =
+        \index ->
+            case index |> modBy 6 of
+                0 ->
+                    rawColors.emeraldGreen
+
+                1 ->
+                    rawColors.sapphireBlue
+
+                2 ->
+                    rawColors.amethystPurple
+
+                3 ->
+                    rawColors.rubyRed
+
+                4 ->
+                    rawColors.topazYellow
+
+                _ ->
+                    rawColors.turquoise
+    , cluster = rawColors.charcoalGrey
     }
 
 
@@ -1357,6 +1607,7 @@ strings =
     , historyEditRange = " to "
     , historyEditConfirm = "Confirm"
     , loading = "Loading..."
+    , cluster = "Cluster"
     , error =
         \error ->
             case error of
