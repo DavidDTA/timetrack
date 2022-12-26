@@ -1117,7 +1117,7 @@ viewCalendar { now, zone } timerSet { historySelectedDate } =
                 |> Quantity.plus (Pixels.pixels 24)
 
         minEventDuration =
-            Duration.minutes 10
+            Duration.minutes 15
 
         date =
             historySelectedDate
@@ -1234,6 +1234,7 @@ viewCalendar { now, zone } timerSet { historySelectedDate } =
                     , Css.right Css.zero
                     , Css.backgroundColor color
                     , Css.overflow Css.hidden
+                    , Css.fontSize (Css.px (minEventDuration |> Quantity.at pixelsPerHour |> Pixels.toFloat))
                     ]
                 ]
                 [ Accessibility.Styled.text title ]
@@ -1299,8 +1300,15 @@ viewCalendar { now, zone } timerSet { historySelectedDate } =
 
                                 blockDuration =
                                     Quantity.max minEventDuration duration
+
+                                margin =
+                                    if duration |> Quantity.lessThan minEventDuration then
+                                        leftIndentMargin
+
+                                    else
+                                        leftMargin
                             in
-                            block blockStart blockDuration leftIndentMargin colors.cluster strings.cluster
+                            block blockStart blockDuration margin colors.cluster strings.cluster
                         )
                )
         )
