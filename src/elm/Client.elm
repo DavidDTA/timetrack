@@ -150,6 +150,7 @@ type Msg
     | HistoryEditUpdateStartMinutes String
     | HistoryEditUpdateEndHours String
     | HistoryEditUpdateEndMinutes String
+    | HistoryEditCancel
     | HistoryEditCommit
     | HistoryIncrementDate { days : Int }
     | Navigate Page
@@ -383,6 +384,9 @@ update msg model =
 
         HistoryEditUpdateEndMinutes raw ->
             updateHistoryEdit String.toInt (\selection edit -> { edit | endMinute = selection }) raw
+
+        HistoryEditCancel ->
+            ( { model | historyEdit = Nothing }, Cmd.none )
 
         HistoryEditCommit ->
             case model.historyEdit of
@@ -1065,6 +1069,10 @@ viewHistoryEdit timerSet historyEdit =
                         [ Html.Styled.Events.onClick HistoryEditCommit
                         ]
                         [ Accessibility.Styled.text strings.historyEditConfirm ]
+                   , Accessibility.Styled.button
+                        [ Html.Styled.Events.onClick HistoryEditCancel
+                        ]
+                        [ Accessibility.Styled.text strings.historyEditCancel ]
                    ]
 
 
@@ -1613,6 +1621,7 @@ strings =
     , total = "Total"
     , history = "History"
     , historyEditRange = " to "
+    , historyEditCancel = "Cancel"
     , historyEditConfirm = "Confirm"
     , loading = "Loading..."
     , cluster = "Cluster"
