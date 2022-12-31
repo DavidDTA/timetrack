@@ -1259,7 +1259,8 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
                     , Css.right Css.zero
                     , Css.backgroundColor color
                     , Css.overflow Css.hidden
-                    , Css.fontSize (Css.px (minEventDuration |> Quantity.at pixelsPerHour |> Pixels.toFloat))
+                    , Css.fontSize (Css.px (Pixels.toFloat buttonSize))
+                    , Css.lineHeight (Css.px (Pixels.toFloat buttonSize))
                     ]
                 ]
                 [ Accessibility.Styled.text title ]
