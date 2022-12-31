@@ -722,7 +722,24 @@ globalCss { remote, time } =
 
 
 viewBody ({ authentication } as model) =
-    [ Accessibility.Styled.div
+    [ viewFlexFixedHeader
+        [ viewMenuIcon model
+        , viewCalendarIcon
+        , viewLoadingIcon model
+        , viewErrorsIcon model
+        ]
+        (case viewPage model of
+            Nothing ->
+                [ Accessibility.Styled.text strings.loading ]
+
+            Just content ->
+                content
+        )
+    ]
+
+
+viewFlexFixedHeader header body =
+    Accessibility.Styled.div
         [ Html.Styled.Attributes.css
             [ Css.height (Css.pct 100)
             , Css.displayFlex
@@ -734,21 +751,16 @@ viewBody ({ authentication } as model) =
                 [ Css.flexGrow Css.zero
                 ]
             ]
-            [ viewMenuIcon model
-            , viewCalendarIcon
-            , viewLoadingIcon model
-            , viewErrorsIcon model
+            header
+        , Accessibility.Styled.div
+            [ Html.Styled.Attributes.css
+                [ Css.flexGrow (Css.num 1)
+                , Css.property "flex-basis" "0"
+                , Css.overflowY Css.auto
+                ]
             ]
-        , Accessibility.Styled.div [ Html.Styled.Attributes.css [ Css.flexGrow (Css.num 1), Css.property "flex-basis" "0", Css.overflowY Css.auto ] ]
-            (case viewPage model of
-                Nothing ->
-                    [ Accessibility.Styled.text strings.loading ]
-
-                Just content ->
-                    content
-            )
+            body
         ]
-    ]
 
 
 viewPage ({ authentication } as model) =
@@ -1279,8 +1291,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
                 ]
                 [ Accessibility.Styled.text title ]
     in
-    [ Accessibility.Styled.div
-        []
+    [ viewFlexFixedHeader
         [ viewIcon
             { onClick =
                 Just CalendarZoomIn
@@ -1294,79 +1305,80 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
                 Accessibility.Styled.text "-"
             }
         ]
-    , Accessibility.Styled.div
-        [ Html.Styled.Attributes.css
-            [ Css.height (Css.px 960)
-            , Css.position Css.relative
+        [ Accessibility.Styled.div
+            [ Html.Styled.Attributes.css
+                [ Css.height (Css.px 960)
+                , Css.position Css.relative
+                ]
             ]
-        ]
-        ((labels
-            |> List.drop 1
-            |> List.map
-                (\( hour, label ) ->
-                    Accessibility.Styled.div
-                        [ Html.Styled.Attributes.css
-                            [ Css.position Css.absolute
-                            , Css.width (Css.pct 100)
-                            , Css.bottom
-                                (Css.calc (Css.pct 100)
-                                    Css.minus
-                                    (Css.px (Pixels.toFloat (pixelOffset hour)))
-                                )
-                            , Css.borderBottomWidth (Css.px 1)
-                            , Css.borderBottomStyle Css.solid
-                            , Css.borderBottomColor colors.gridline
+            ((labels
+                |> List.drop 1
+                |> List.map
+                    (\( hour, label ) ->
+                        Accessibility.Styled.div
+                            [ Html.Styled.Attributes.css
+                                [ Css.position Css.absolute
+                                , Css.width (Css.pct 100)
+                                , Css.bottom
+                                    (Css.calc (Css.pct 100)
+                                        Css.minus
+                                        (Css.px (Pixels.toFloat (pixelOffset hour)))
+                                    )
+                                , Css.borderBottomWidth (Css.px 1)
+                                , Css.borderBottomStyle Css.solid
+                                , Css.borderBottomColor colors.gridline
+                                ]
                             ]
-                        ]
-                        [ Accessibility.Styled.text label ]
-                )
-         )
-            ++ (dailyHistory.singles
-                    |> List.map
-                        (\{ start, duration, value } ->
-                            block start
-                                duration
-                                leftMargin
-                                (case value of
-                                    Nothing ->
-                                        colors.paused
+                            [ Accessibility.Styled.text label ]
+                    )
+             )
+                ++ (dailyHistory.singles
+                        |> List.map
+                            (\{ start, duration, value } ->
+                                block start
+                                    duration
+                                    leftMargin
+                                    (case value of
+                                        Nothing ->
+                                            colors.paused
 
-                                    Just timerId ->
-                                        colors.jewel (TimerSet.timerIdToRaw timerId)
-                                )
-                                (timerDisplayName timerSet value)
-                        )
-               )
-            ++ (dailyHistory.clusters
-                    |> List.map
-                        (\{ start, duration } ->
-                            let
-                                blockStart =
-                                    if duration |> Quantity.lessThan minEventDuration then
-                                        minEventDuration
-                                            |> Quantity.minus duration
-                                            |> Quantity.divideBy 2
-                                            |> Duration.subtractFrom start
-                                            |> posixMin (Duration.subtractFrom dayEnd minEventDuration)
-                                            |> posixMax dayStart
+                                        Just timerId ->
+                                            colors.jewel (TimerSet.timerIdToRaw timerId)
+                                    )
+                                    (timerDisplayName timerSet value)
+                            )
+                   )
+                ++ (dailyHistory.clusters
+                        |> List.map
+                            (\{ start, duration } ->
+                                let
+                                    blockStart =
+                                        if duration |> Quantity.lessThan minEventDuration then
+                                            minEventDuration
+                                                |> Quantity.minus duration
+                                                |> Quantity.divideBy 2
+                                                |> Duration.subtractFrom start
+                                                |> posixMin (Duration.subtractFrom dayEnd minEventDuration)
+                                                |> posixMax dayStart
 
-                                    else
-                                        start
+                                        else
+                                            start
 
-                                blockDuration =
-                                    Quantity.max minEventDuration duration
+                                    blockDuration =
+                                        Quantity.max minEventDuration duration
 
-                                margin =
-                                    if duration |> Quantity.lessThan minEventDuration then
-                                        leftIndentMargin
+                                    margin =
+                                        if duration |> Quantity.lessThan minEventDuration then
+                                            leftIndentMargin
 
-                                    else
-                                        leftMargin
-                            in
-                            block blockStart blockDuration margin colors.cluster strings.cluster
-                        )
-               )
-        )
+                                        else
+                                            leftMargin
+                                in
+                                block blockStart blockDuration margin colors.cluster strings.cluster
+                            )
+                   )
+            )
+        ]
     ]
 
 
