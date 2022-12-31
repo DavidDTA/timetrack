@@ -722,19 +722,33 @@ globalCss { remote, time } =
 
 
 viewBody ({ authentication } as model) =
-    Accessibility.Styled.div []
-        [ viewMenuIcon model
-        , viewCalendarIcon
-        , viewLoadingIcon model
-        , viewErrorsIcon model
+    [ Accessibility.Styled.div
+        [ Html.Styled.Attributes.css
+            [ Css.height (Css.pct 100)
+            , Css.displayFlex
+            , Css.flexDirection Css.column
+            ]
         ]
-        :: (case viewPage model of
+        [ Accessibility.Styled.div
+            [ Html.Styled.Attributes.css
+                [ Css.flexGrow Css.zero
+                ]
+            ]
+            [ viewMenuIcon model
+            , viewCalendarIcon
+            , viewLoadingIcon model
+            , viewErrorsIcon model
+            ]
+        , Accessibility.Styled.div [ Html.Styled.Attributes.css [ Css.flexGrow (Css.num 1), Css.property "flex-basis" "0", Css.overflowY Css.auto ] ]
+            (case viewPage model of
                 Nothing ->
                     [ Accessibility.Styled.text strings.loading ]
 
                 Just content ->
                     content
-           )
+            )
+        ]
+    ]
 
 
 viewPage ({ authentication } as model) =
