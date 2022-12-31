@@ -54,6 +54,7 @@ main =
 
 type alias Model =
     { authentication : Authentication
+    , calendarZoomLevel : Int
     , time : TimeModel
     , errors : List Error
     , historyEdit : Maybe HistoryEdit
@@ -141,6 +142,8 @@ type Page
 type Msg
     = ApiResponse (Result Functions.SendError Api.Response)
     | ApiRetry
+    | CalendarZoomIn
+    | CalendarZoomOut
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | UpdateZoneError TimeZone.Error
@@ -175,6 +178,7 @@ init { localStorage } _ _ =
                 |> Result.withDefault (AuthenticationUninitialized { usernameInput = "" })
     in
     ( { authentication = authentication
+      , calendarZoomLevel = 0
       , errors = []
       , historyEdit = Nothing
       , historySelectedDate = SelectedDate.unselected
@@ -295,6 +299,12 @@ update msg model =
                                     enqueueAll (List.reverse queue) model1
                             in
                             ( model2, Cmd.batch [ cmd1, cmd2 ] )
+
+        CalendarZoomIn ->
+            ( { model | calendarZoomLevel = model.calendarZoomLevel + 1 }, Cmd.none )
+
+        CalendarZoomOut ->
+            ( { model | calendarZoomLevel = max 0 (model.calendarZoomLevel - 1) }, Cmd.none )
 
         UpdateNow posix ->
             ( { model
@@ -875,16 +885,20 @@ viewErrorsIcon { errors, pending } =
         }
 
 
+buttonSize =
+    Pixels.pixels 24
+
+
 viewIcon { onClick, content } =
     Accessibility.Styled.button
         ([ Html.Styled.Attributes.css
             [ Css.display Css.inlineBlock
-            , Css.width (Css.px 24)
-            , Css.height (Css.px 24)
+            , Css.width (Css.px (Pixels.toFloat buttonSize))
+            , Css.height (Css.px (Pixels.toFloat buttonSize))
             , Css.margin (Css.px 8)
-            , Css.fontSize (Css.px 24)
+            , Css.fontSize (Css.px (Pixels.toFloat buttonSize))
             , Css.textAlign Css.center
-            , Css.lineHeight (Css.px 24)
+            , Css.lineHeight (Css.px (Pixels.toFloat buttonSize))
             , Css.backgroundColor Css.transparent
             , Css.border Css.zero
             , Css.color Css.inherit
@@ -1112,10 +1126,12 @@ timerDisplayName timerSet timerId =
         |> Maybe.Extra.unwrap strings.paused (Maybe.Extra.unwrap strings.unknownTimer .name)
 
 
-viewCalendar { now, zone } timerSet { historySelectedDate } =
+viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
     let
         pixelsPerHour =
-            Pixels.pixels 40 |> Quantity.per Duration.hour
+            Pixels.pixels 40
+                |> Quantity.per Duration.hour
+                |> Quantity.multiplyBy (2 ^ calendarZoomLevel |> toFloat)
 
         leftMargin =
             Pixels.pixels 60
@@ -1125,7 +1141,8 @@ viewCalendar { now, zone } timerSet { historySelectedDate } =
                 |> Quantity.plus (Pixels.pixels 24)
 
         minEventDuration =
-            Duration.minutes 15
+            buttonSize
+                |> Quantity.at_ pixelsPerHour
 
         date =
             historySelectedDate
@@ -1165,18 +1182,18 @@ viewCalendar { now, zone } timerSet { historySelectedDate } =
                     dayStart
                     dayEnd
 
-        hours =
-            Time.Extra.range Time.Extra.Hour 1 zone dayStart (Time.Extra.add Time.Extra.Hour 1 zone dayEnd)
+        rules =
+            Time.Extra.range Time.Extra.Hour 1 zone dayStart (Time.Extra.add Time.Extra.Millisecond 1 zone dayEnd)
 
         timeChange =
-            hours
+            rules
                 |> List.map (\hour -> Time.Extra.toOffset zone hour)
                 |> List.Extra.unique
                 |> List.length
                 |> flip (>) 1
 
         labels =
-            hours
+            rules
                 |> List.map
                     (\hour ->
                         let
@@ -1248,6 +1265,21 @@ viewCalendar { now, zone } timerSet { historySelectedDate } =
                 [ Accessibility.Styled.text title ]
     in
     [ Accessibility.Styled.div
+        []
+        [ viewIcon
+            { onClick =
+                Just CalendarZoomIn
+            , content =
+                Accessibility.Styled.text "+"
+            }
+        , viewIcon
+            { onClick =
+                Just CalendarZoomOut
+            , content =
+                Accessibility.Styled.text "-"
+            }
+        ]
+    , Accessibility.Styled.div
         [ Html.Styled.Attributes.css
             [ Css.height (Css.px 960)
             , Css.position Css.relative
@@ -1604,6 +1636,8 @@ colors =
 
 strings =
     { appTitle = "Timetrack"
+    , calendarZoomIn = "+"
+    , calendarZoomOut = "-"
     , unnamedTimer = "Unnamed Timer"
     , enterUsernamePrompt = "Enter username"
     , submitUsername = "Submit"
