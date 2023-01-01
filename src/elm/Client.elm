@@ -1152,7 +1152,7 @@ timerDisplayName timerSet timerId =
         |> Maybe.Extra.unwrap strings.paused (Maybe.Extra.unwrap strings.unknownTimer .name)
 
 
-viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
+viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, historyEdit } =
     let
         pixelsPerHour =
             Pixels.pixels 40
@@ -1268,7 +1268,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
             Duration.from dayStart time
                 |> Quantity.at pixelsPerHour
 
-        block start duration left color title =
+        block start duration left color title onClick =
             let
                 top =
                     pixelOffset start
@@ -1276,8 +1276,8 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
                 height =
                     Duration.addTo start duration |> pixelOffset |> Quantity.minus top
             in
-            Accessibility.Styled.div
-                [ Html.Styled.Attributes.css
+            Accessibility.Styled.button
+                (Html.Styled.Attributes.css
                     [ Css.position Css.absolute
                     , Css.top (Css.px (top |> Pixels.toFloat))
                     , Css.height (Css.px (height |> Pixels.toFloat))
@@ -1287,24 +1287,36 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
                     , Css.overflow Css.hidden
                     , Css.fontSize (Css.px (Pixels.toFloat buttonSize))
                     , Css.lineHeight (Css.px (Pixels.toFloat buttonSize))
+                    , Css.border Css.zero
+                    , Css.color Css.inherit
+                    , Css.textAlign Css.start
                     ]
-                ]
+                    :: (case onClick of
+                            Just msg ->
+                                [ Html.Styled.Events.onClick msg ]
+
+                            Nothing ->
+                                []
+                       )
+                )
                 [ Accessibility.Styled.text title ]
     in
     [ viewFlexFixedHeader
-        [ viewIcon
+        ([ viewIcon
             { onClick =
                 Just CalendarZoomIn
             , content =
                 Accessibility.Styled.text "+"
             }
-        , viewIcon
+         , viewIcon
             { onClick =
                 Just CalendarZoomOut
             , content =
                 Accessibility.Styled.text "-"
             }
-        ]
+         ]
+            ++ viewHistoryEdit timerSet historyEdit
+        )
         [ Accessibility.Styled.div
             [ Html.Styled.Attributes.css
                 [ Css.height (Css.px 960)
@@ -1346,6 +1358,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
                                             colors.jewel (TimerSet.timerIdToRaw timerId)
                                     )
                                     (timerDisplayName timerSet value)
+                                    (Just (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration }))
                             )
                    )
                 ++ (dailyHistory.clusters
@@ -1374,7 +1387,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate } =
                                         else
                                             leftMargin
                                 in
-                                block blockStart blockDuration margin colors.cluster strings.cluster
+                                block blockStart blockDuration margin colors.cluster strings.cluster Nothing
                             )
                    )
             )
