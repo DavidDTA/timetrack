@@ -1279,6 +1279,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
             Accessibility.Styled.button
                 (Html.Styled.Attributes.css
                     [ Css.position Css.absolute
+                    , Css.displayFlex
                     , Css.top (Css.px (top |> Pixels.toFloat))
                     , Css.height (Css.px (height |> Pixels.toFloat))
                     , Css.left (Css.px (Pixels.toFloat left))
