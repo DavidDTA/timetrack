@@ -3,6 +3,7 @@ port module Client exposing (main)
 import Accessibility.Styled
 import Api
 import Browser
+import Browser.Dom
 import Browser.Events
 import Browser.Navigation
 import Color
@@ -130,6 +131,7 @@ type Error
     | ApiError Functions.SendError
     | InvalidHistoryEdit String
     | Uninitialized
+    | DomNodeNotFound String
 
 
 type Page
@@ -139,11 +141,17 @@ type Page
     | Errors
 
 
+type CalendarZoomOperation
+    = ZoomIn
+    | ZoomOut
+
+
 type Msg
     = ApiResponse (Result Functions.SendError Api.Response)
     | ApiRetry
-    | CalendarZoomIn
-    | CalendarZoomOut
+    | CalendarZoomStart CalendarZoomOperation
+    | CalendarZoomWithViewport CalendarZoomOperation (Result Browser.Dom.Error Browser.Dom.Viewport)
+    | CalendarZoomFinished (Result Browser.Dom.Error ())
     | UpdateNow Time.Posix
     | UpdateZone Time.Zone
     | UpdateZoneError TimeZone.Error
@@ -300,11 +308,63 @@ update msg model =
                             in
                             ( model2, Cmd.batch [ cmd1, cmd2 ] )
 
-        CalendarZoomIn ->
-            ( { model | calendarZoomLevel = model.calendarZoomLevel + 1 }, Cmd.none )
+        CalendarZoomStart zoomOperation ->
+            ( model
+            , Browser.Dom.getViewportOf ids.calendarScrollContainer
+                |> Task.attempt (CalendarZoomWithViewport zoomOperation)
+            )
 
-        CalendarZoomOut ->
-            ( { model | calendarZoomLevel = max 0 (model.calendarZoomLevel - 1) }, Cmd.none )
+        CalendarZoomWithViewport zoomOperation result ->
+            let
+                newZoomLevel =
+                    max 0
+                        (model.calendarZoomLevel
+                            + (case zoomOperation of
+                                ZoomIn ->
+                                    1
+
+                                ZoomOut ->
+                                    -1
+                              )
+                        )
+
+                initialPixelsPerHour =
+                    pixelsPerHour model.calendarZoomLevel
+
+                newPixelsPerHour =
+                    pixelsPerHour newZoomLevel
+
+                factor =
+                    Quantity.ratio newPixelsPerHour initialPixelsPerHour
+
+                ( error, cmd ) =
+                    case result of
+                        Ok { scene, viewport } ->
+                            ( Nothing, Browser.Dom.setViewportOf ids.calendarScrollContainer 0 (viewport.y / (scene.height - viewport.height) * (scene.height * factor - viewport.height)) |> Task.attempt CalendarZoomFinished )
+
+                        Err (Browser.Dom.NotFound id) ->
+                            ( Just (DomNodeNotFound id), Cmd.none )
+            in
+            ( { model
+                | calendarZoomLevel = newZoomLevel
+                , errors =
+                    case error of
+                        Nothing ->
+                            model.errors
+
+                        Just e ->
+                            e :: model.errors
+              }
+            , cmd
+            )
+
+        CalendarZoomFinished result ->
+            case result of
+                Ok () ->
+                    ( model, Cmd.none )
+
+                Err (Browser.Dom.NotFound id) ->
+                    ( { model | errors = DomNodeNotFound id :: model.errors }, Cmd.none )
 
         UpdateNow posix ->
             ( { model
@@ -723,22 +783,25 @@ globalCss { remote, time } =
 
 viewBody ({ authentication } as model) =
     [ viewFlexFixedHeader
-        [ viewMenuIcon model
-        , viewCalendarIcon
-        , viewLoadingIcon model
-        , viewErrorsIcon model
-        ]
-        (case viewPage model of
-            Nothing ->
-                [ Accessibility.Styled.text strings.loading ]
+        { header =
+            [ viewMenuIcon model
+            , viewCalendarIcon
+            , viewLoadingIcon model
+            , viewErrorsIcon model
+            ]
+        , body =
+            case viewPage model of
+                Nothing ->
+                    [ Accessibility.Styled.text strings.loading ]
 
-            Just content ->
-                content
-        )
+                Just content ->
+                    content
+        , scrollContainerId = Nothing
+        }
     ]
 
 
-viewFlexFixedHeader header body =
+viewFlexFixedHeader { header, body, scrollContainerId } =
     Accessibility.Styled.div
         [ Html.Styled.Attributes.css
             [ Css.height (Css.pct 100)
@@ -753,12 +816,19 @@ viewFlexFixedHeader header body =
             ]
             header
         , Accessibility.Styled.div
-            [ Html.Styled.Attributes.css
+            (Html.Styled.Attributes.css
                 [ Css.flexGrow (Css.num 1)
                 , Css.property "flex-basis" "0"
                 , Css.overflowY Css.auto
                 ]
-            ]
+                :: (case scrollContainerId of
+                        Nothing ->
+                            []
+
+                        Just id ->
+                            [ Html.Styled.Attributes.id id ]
+                   )
+            )
             body
         ]
 
@@ -887,10 +957,13 @@ viewErrorsIcon { errors, pending } =
 
                         PendingError _ ->
                             True
+
+        visible =
+            retryable || errors /= []
     in
     viewIcon
         { onClick =
-            if retryable then
+            if visible then
                 Just (Navigate Errors)
 
             else
@@ -899,7 +972,7 @@ viewErrorsIcon { errors, pending } =
             Accessibility.Styled.div
                 [ Html.Styled.Attributes.css
                     [ Css.opacity
-                        (if retryable || errors /= [] then
+                        (if visible then
                             Css.num 100
 
                          else
@@ -1152,13 +1225,14 @@ timerDisplayName timerSet timerId =
         |> Maybe.Extra.unwrap strings.paused (Maybe.Extra.unwrap strings.unknownTimer .name)
 
 
+pixelsPerHour calendarZoomLevel =
+    Pixels.pixels 40
+        |> Quantity.per Duration.hour
+        |> Quantity.multiplyBy (2 ^ calendarZoomLevel |> toFloat)
+
+
 viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, historyEdit } =
     let
-        pixelsPerHour =
-            Pixels.pixels 40
-                |> Quantity.per Duration.hour
-                |> Quantity.multiplyBy (2 ^ calendarZoomLevel |> toFloat)
-
         leftMargin =
             Pixels.pixels 60
 
@@ -1168,7 +1242,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
 
         minEventDuration =
             buttonSize
-                |> Quantity.at_ pixelsPerHour
+                |> Quantity.at_ (pixelsPerHour calendarZoomLevel)
 
         date =
             historySelectedDate
@@ -1266,7 +1340,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
 
         pixelOffset time =
             Duration.from dayStart time
-                |> Quantity.at pixelsPerHour
+                |> Quantity.at (pixelsPerHour calendarZoomLevel)
 
         block start duration left color title onClick =
             let
@@ -1303,96 +1377,99 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
                 [ Accessibility.Styled.text title ]
     in
     [ viewFlexFixedHeader
-        ([ viewIcon
-            { onClick =
-                Just CalendarZoomIn
-            , content =
-                Accessibility.Styled.text "+"
-            }
-         , viewIcon
-            { onClick =
-                Just CalendarZoomOut
-            , content =
-                Accessibility.Styled.text "-"
-            }
-         ]
-            ++ viewHistoryEdit timerSet historyEdit
-        )
-        [ Accessibility.Styled.div
-            [ Html.Styled.Attributes.css
-                [ Css.height (Css.px 960)
-                , Css.position Css.relative
-                ]
+        { header =
+            [ viewIcon
+                { onClick =
+                    Just (CalendarZoomStart ZoomIn)
+                , content =
+                    Accessibility.Styled.text "+"
+                }
+            , viewIcon
+                { onClick =
+                    Just (CalendarZoomStart ZoomOut)
+                , content =
+                    Accessibility.Styled.text "-"
+                }
             ]
-            ((labels
-                |> List.drop 1
-                |> List.map
-                    (\( hour, label ) ->
-                        Accessibility.Styled.div
-                            [ Html.Styled.Attributes.css
-                                [ Css.position Css.absolute
-                                , Css.width (Css.pct 100)
-                                , Css.bottom
-                                    (Css.calc (Css.pct 100)
-                                        Css.minus
-                                        (Css.px (Pixels.toFloat (pixelOffset hour)))
-                                    )
-                                , Css.borderBottomWidth (Css.px 1)
-                                , Css.borderBottomStyle Css.solid
-                                , Css.borderBottomColor colors.gridline
+                ++ viewHistoryEdit timerSet historyEdit
+        , body =
+            [ Accessibility.Styled.div
+                [ Html.Styled.Attributes.css
+                    [ Css.height (Css.px 960)
+                    , Css.position Css.relative
+                    ]
+                ]
+                ((labels
+                    |> List.drop 1
+                    |> List.map
+                        (\( hour, label ) ->
+                            Accessibility.Styled.div
+                                [ Html.Styled.Attributes.css
+                                    [ Css.position Css.absolute
+                                    , Css.width (Css.pct 100)
+                                    , Css.bottom
+                                        (Css.calc (Css.pct 100)
+                                            Css.minus
+                                            (Css.px (Pixels.toFloat (pixelOffset hour)))
+                                        )
+                                    , Css.borderBottomWidth (Css.px 1)
+                                    , Css.borderBottomStyle Css.solid
+                                    , Css.borderBottomColor colors.gridline
+                                    ]
                                 ]
-                            ]
-                            [ Accessibility.Styled.text label ]
-                    )
-             )
-                ++ (dailyHistory.singles
-                        |> List.map
-                            (\{ start, duration, value } ->
-                                block start
-                                    duration
-                                    leftMargin
-                                    (case value of
-                                        Nothing ->
-                                            colors.paused
+                                [ Accessibility.Styled.text label ]
+                        )
+                 )
+                    ++ (dailyHistory.singles
+                            |> List.map
+                                (\{ start, duration, value } ->
+                                    block start
+                                        duration
+                                        leftMargin
+                                        (case value of
+                                            Nothing ->
+                                                colors.paused
 
-                                        Just timerId ->
-                                            colors.jewel (TimerSet.timerIdToRaw timerId)
-                                    )
-                                    (timerDisplayName timerSet value)
-                                    (Just (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration }))
-                            )
-                   )
-                ++ (dailyHistory.clusters
-                        |> List.map
-                            (\{ start, duration } ->
-                                let
-                                    blockStart =
-                                        if duration |> Quantity.lessThan minEventDuration then
-                                            minEventDuration
-                                                |> Quantity.minus duration
-                                                |> Quantity.divideBy 2
-                                                |> Duration.subtractFrom start
-                                                |> posixMin (Duration.subtractFrom dayEnd minEventDuration)
-                                                |> posixMax dayStart
+                                            Just timerId ->
+                                                colors.jewel (TimerSet.timerIdToRaw timerId)
+                                        )
+                                        (timerDisplayName timerSet value)
+                                        (Just (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration }))
+                                )
+                       )
+                    ++ (dailyHistory.clusters
+                            |> List.map
+                                (\{ start, duration } ->
+                                    let
+                                        blockStart =
+                                            if duration |> Quantity.lessThan minEventDuration then
+                                                minEventDuration
+                                                    |> Quantity.minus duration
+                                                    |> Quantity.divideBy 2
+                                                    |> Duration.subtractFrom start
+                                                    |> posixMin (Duration.subtractFrom dayEnd minEventDuration)
+                                                    |> posixMax dayStart
 
-                                        else
-                                            start
+                                            else
+                                                start
 
-                                    blockDuration =
-                                        Quantity.max minEventDuration duration
+                                        blockDuration =
+                                            Quantity.max minEventDuration duration
 
-                                    margin =
-                                        if duration |> Quantity.lessThan minEventDuration then
-                                            leftIndentMargin
+                                        margin =
+                                            if duration |> Quantity.lessThan minEventDuration then
+                                                leftIndentMargin
 
-                                        else
-                                            leftMargin
-                                in
-                                block blockStart blockDuration margin colors.cluster strings.cluster Nothing
-                            )
-                   )
-            )
-        ]
+                                            else
+                                                leftMargin
+                                    in
+                                    block blockStart blockDuration margin colors.cluster strings.cluster Nothing
+                                )
+                       )
+                )
+            ]
+        , scrollContainerId = Just ids.calendarScrollContainer
+        }
     ]
 
 
@@ -1755,6 +1832,9 @@ strings =
 
                 Uninitialized ->
                     "Uninitialized!"
+
+                DomNodeNotFound id ->
+                    "Dom node not found: " ++ id
     , newTimer = "New timer: "
     }
 
@@ -1762,6 +1842,11 @@ strings =
 durations =
     { spinnerRotation = Duration.milliseconds 800
     , transition = Duration.milliseconds 150
+    }
+
+
+ids =
+    { calendarScrollContainer = "a"
     }
 
 
