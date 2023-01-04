@@ -1287,7 +1287,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
                                             { start = head.start, duration = Quantity.plus duration head.duration, timerIds = BlockTimerIdsMultiple { timerIds | reversedRemainder = value :: timerIds.reversedRemainder } } :: tail
                     )
                     dayStart
-                    dayEnd
+                    (timeMin now dayEnd)
 
         rules =
             Time.Extra.range Time.Extra.Hour 1 zone dayStart (Time.Extra.add Time.Extra.Millisecond 1 zone dayEnd)
