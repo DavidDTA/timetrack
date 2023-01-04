@@ -1231,6 +1231,11 @@ pixelsPerHour calendarZoomLevel =
         |> Quantity.multiplyBy (2 ^ calendarZoomLevel |> toFloat)
 
 
+type BlockTimerIds
+    = BlockTimerIdsSingle (Maybe TimerSet.TimerId)
+    | BlockTimerIdsMultiple { first : Maybe TimerSet.TimerId, second : Maybe TimerSet.TimerId, reversedRemainder : List (Maybe TimerSet.TimerId) }
+
+
 viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, historyEdit } =
     let
         leftMargin =
@@ -1259,25 +1264,27 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
 
         dailyHistory =
             history
-                |> Timeline.fold { singles = [], clusters = [] }
-                    (\({ start, duration, value } as entry) acc ->
-                        if duration |> Quantity.greaterThanOrEqualTo minEventDuration then
-                            { acc | singles = entry :: acc.singles }
+                |> Timeline.fold []
+                    (\{ start, duration, value } acc ->
+                        case acc of
+                            [] ->
+                                [ { start = start, duration = duration, timerIds = BlockTimerIdsSingle value } ]
 
-                        else
-                            { acc
-                                | clusters =
-                                    case acc.clusters of
-                                        [] ->
-                                            [ { start = start, duration = duration, entries = [ entry ] } ]
+                            head :: tail ->
+                                if duration |> Quantity.greaterThanOrEqualTo minEventDuration then
+                                    { start = start, duration = duration, timerIds = BlockTimerIdsSingle value } :: head :: tail
 
-                                        head :: tail ->
-                                            if Duration.addTo head.start head.duration == start then
-                                                { start = head.start, duration = Quantity.plus head.duration duration, entries = entry :: head.entries } :: tail
+                                else
+                                    case head.timerIds of
+                                        BlockTimerIdsSingle id ->
+                                            if head.duration |> Quantity.greaterThanOrEqualTo minEventDuration then
+                                                { start = start, duration = duration, timerIds = BlockTimerIdsSingle value } :: head :: tail
 
                                             else
-                                                { start = start, duration = duration, entries = [ entry ] } :: acc.clusters
-                            }
+                                                { start = head.start, duration = Quantity.plus duration head.duration, timerIds = BlockTimerIdsMultiple { first = id, second = value, reversedRemainder = [] } } :: tail
+
+                                        BlockTimerIdsMultiple timerIds ->
+                                            { start = head.start, duration = Quantity.plus duration head.duration, timerIds = BlockTimerIdsMultiple { timerIds | reversedRemainder = value :: timerIds.reversedRemainder } } :: tail
                     )
                     dayStart
                     dayEnd
@@ -1342,7 +1349,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
             Duration.from dayStart time
                 |> Quantity.at (pixelsPerHour calendarZoomLevel)
 
-        block start duration left color title onClick =
+        block start duration left color title zIndex onClick =
             let
                 top =
                     pixelOffset start
@@ -1365,6 +1372,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
                     , Css.border Css.zero
                     , Css.color Css.inherit
                     , Css.textAlign Css.start
+                    , Css.zIndex (Css.int zIndex)
                     ]
                     :: (case onClick of
                             Just msg ->
@@ -1420,26 +1428,9 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
                                 [ Accessibility.Styled.text label ]
                         )
                  )
-                    ++ (dailyHistory.singles
+                    ++ (dailyHistory
                             |> List.map
-                                (\{ start, duration, value } ->
-                                    block start
-                                        duration
-                                        leftMargin
-                                        (case value of
-                                            Nothing ->
-                                                colors.paused
-
-                                            Just timerId ->
-                                                colors.jewel (TimerSet.timerIdToRaw timerId)
-                                        )
-                                        (timerDisplayName timerSet value)
-                                        (Just (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration }))
-                                )
-                       )
-                    ++ (dailyHistory.clusters
-                            |> List.map
-                                (\{ start, duration } ->
+                                (\{ start, duration, timerIds } ->
                                     let
                                         blockStart =
                                             if duration |> Quantity.lessThan minEventDuration then
@@ -1462,8 +1453,46 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
 
                                             else
                                                 leftMargin
+
+                                        color =
+                                            case timerIds of
+                                                BlockTimerIdsSingle Nothing ->
+                                                    colors.paused
+
+                                                BlockTimerIdsSingle (Just id) ->
+                                                    colors.jewel (TimerSet.timerIdToRaw id)
+
+                                                BlockTimerIdsMultiple _ ->
+                                                    colors.cluster
+
+                                        name =
+                                            case timerIds of
+                                                BlockTimerIdsSingle id ->
+                                                    timerDisplayName timerSet id
+
+                                                BlockTimerIdsMultiple { first, second, reversedRemainder } ->
+                                                    first
+                                                        :: second
+                                                        :: (reversedRemainder |> List.reverse)
+                                                        |> List.map (\id -> timerDisplayName timerSet id)
+                                                        |> strings.list
+
+                                        action =
+                                            case timerIds of
+                                                BlockTimerIdsSingle id ->
+                                                    Just (HistoryEditStart { timerId = id, start = start, end = Duration.addTo start duration })
+
+                                                BlockTimerIdsMultiple _ ->
+                                                    Just (CalendarZoomStart ZoomIn)
+
+                                        zIndex =
+                                            if duration |> Quantity.lessThan minEventDuration then
+                                                1
+
+                                            else
+                                                0
                                     in
-                                    block blockStart blockDuration margin colors.cluster strings.cluster Nothing
+                                    block blockStart blockDuration margin color name zIndex action
                                 )
                        )
                 )
@@ -1776,7 +1805,6 @@ strings =
     , historyEditCancel = "Cancel"
     , historyEditConfirm = "Confirm"
     , loading = "Loading..."
-    , cluster = "Cluster"
     , error =
         \error ->
             case error of
@@ -1836,6 +1864,7 @@ strings =
                 DomNodeNotFound id ->
                     "Dom node not found: " ++ id
     , newTimer = "New timer: "
+    , list = \values -> String.join ", " values
     }
 
 
