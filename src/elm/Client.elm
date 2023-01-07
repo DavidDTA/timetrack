@@ -186,7 +186,7 @@ init { localStorage } _ _ =
                 |> Result.withDefault (AuthenticationUninitialized { usernameInput = "" })
     in
     ( { authentication = authentication
-      , calendarZoomLevel = 0
+      , calendarZoomLevel = 1
       , errors = []
       , historyEdit = Nothing
       , historySelectedDate = SelectedDate.unselected
