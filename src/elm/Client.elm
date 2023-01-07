@@ -135,9 +135,9 @@ type Error
 
 
 type Page
-    = Home
+    = Calendar
+    | Totals
     | Menu
-    | Calendar
     | Errors
 
 
@@ -163,7 +163,7 @@ type Msg
     | HistoryEditUpdateEndMinutes String
     | HistoryEditCancel
     | HistoryEditCommit
-    | HistoryIncrementDate { days : Int }
+    | IncrementDate { days : Int }
     | Navigate Page
     | NavigateBack
     | TimerEditCommit TimerSet.TimerId
@@ -519,7 +519,7 @@ update msg model =
                         withEditReset
                             |> enqueue (Api.TimersSetActive { timerId = timerId, start = start, end = Just end })
 
-        HistoryIncrementDate { days } ->
+        IncrementDate { days } ->
             ( case model.time of
                 TimeUninitialized _ ->
                     model
@@ -785,7 +785,7 @@ viewBody ({ authentication } as model) =
     [ viewFlexContainer
         { header =
             [ viewMenuIcon model
-            , viewCalendarIcon
+            , viewTotalsIcon
             , viewLoadingIcon model
             , viewErrorsIcon model
             ]
@@ -863,11 +863,11 @@ viewPage ({ authentication } as model) =
 
 
 viewPageAuthenticated ({ page, pending, remote, time } as model) =
-    case Maybe.withDefault Home (List.head page) of
-        Home ->
+    case Maybe.withDefault Calendar (List.head page) of
+        Totals ->
             case ( time, remote.timerSet ) of
                 ( TimeInitialized initializedTime, Just timerSet ) ->
-                    Just (viewTimerSelect initializedTime timerSet.value model ++ viewHistory initializedTime timerSet.value model)
+                    Just (viewTotals initializedTime timerSet.value model)
 
                 _ ->
                     Nothing
@@ -911,12 +911,12 @@ viewMenuIcon { page } =
         }
 
 
-viewCalendarIcon =
+viewTotalsIcon =
     viewIcon
         { onClick =
-            Just (Navigate Calendar)
+            Just (Navigate Totals)
         , content =
-            Accessibility.Styled.text "📅"
+            Accessibility.Styled.text "∑"
         }
 
 
@@ -1156,21 +1156,6 @@ endOfDay zone date =
     startOfDay zone (Date.add Date.Days 1 date)
 
 
-viewHistoryItem zone timerSet { value, start, duration } =
-    Accessibility.Styled.div []
-        [ Accessibility.Styled.button
-            [ Html.Styled.Events.onClick (HistoryEditStart { timerId = value, start = start, end = Duration.addTo start duration })
-            , Html.Styled.Attributes.css [ Css.backgroundColor Css.transparent, Css.border Css.zero ]
-            ]
-            [ viewTimestamp zone start
-            , Accessibility.Styled.text " "
-            , value
-                |> timerDisplayName timerSet
-                |> Accessibility.Styled.text
-            ]
-        ]
-
-
 viewHistoryEdit timerSet historyEdit =
     case historyEdit of
         Nothing ->
@@ -1408,7 +1393,7 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
         { header =
             [ Accessibility.Styled.div [ Html.Styled.Attributes.css [ Css.textAlign Css.center ] ]
                 [ viewIcon
-                    { onClick = Just (HistoryIncrementDate { days = -1 })
+                    { onClick = Just (IncrementDate { days = -1 })
                     , content = Accessibility.Styled.text "<"
                     }
                 , historySelectedDate
@@ -1428,7 +1413,7 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                         Accessibility.Styled.text "-"
                     }
                 , viewIcon
-                    { onClick = Just (HistoryIncrementDate { days = 1 })
+                    { onClick = Just (IncrementDate { days = 1 })
                     , content = Accessibility.Styled.text ">"
                     }
                 ]
@@ -1547,7 +1532,7 @@ posixMax a b =
     Time.millisToPosix (max (Time.posixToMillis a) (Time.posixToMillis b))
 
 
-viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
+viewTotals { now, zone } timerSet { historySelectedDate, historyEdit } =
     let
         date =
             historySelectedDate
@@ -1561,11 +1546,6 @@ viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
 
         history =
             TimerSet.history timerSet
-
-        dailyHistory =
-            history
-                |> Timeline.fold [] (::) dayStart dayEnd
-                |> List.reverse
 
         viewTotalLine text predicate =
             Accessibility.Styled.div []
@@ -1595,21 +1575,13 @@ viewHistory { now, zone } timerSet { historySelectedDate, historyEdit } =
                 history
                 |> List.reverse
     in
-    [ Accessibility.Styled.h1 []
+    [ Accessibility.Styled.h2 []
         [ historySelectedDate
             |> SelectedDate.getDate now zone
             |> Date.toIsoString
             |> Accessibility.Styled.text
         ]
-    , Accessibility.Styled.div []
-        [ Accessibility.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = -1 }) ] [ Accessibility.Styled.text strings.previous ]
-        , Accessibility.Styled.button [ Html.Styled.Events.onClick (HistoryIncrementDate { days = 1 }) ] [ Accessibility.Styled.text strings.next ]
-        ]
     ]
-        ++ [ Accessibility.Styled.h2 [] [ Accessibility.Styled.text strings.history ] ]
-        ++ viewHistoryEdit timerSet historyEdit
-        ++ List.map (viewHistoryItem zone timerSet) dailyHistory
-        ++ [ Accessibility.Styled.h2 [] [ Accessibility.Styled.text strings.totals ] ]
         ++ List.map
             (\timerId ->
                 viewTotalLine
@@ -1829,7 +1801,6 @@ strings =
     , unknownTimer = "Unknown Timer"
     , previous = "prev"
     , next = "next"
-    , totals = "Totals"
     , abbreviationActive = "A"
     , abbreviationReactive = "R"
     , abbreviationProactive = "P"
