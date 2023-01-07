@@ -1407,7 +1407,12 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
     [ viewFlexContainer
         { header =
             [ viewFlexContainer
-                { header = []
+                { header =
+                    [ viewIcon
+                        { onClick = Just (HistoryIncrementDate { days = -1 })
+                        , content = Accessibility.Styled.text "<"
+                        }
+                    ]
                 , footer =
                     [ viewIcon
                         { onClick =
@@ -1420,6 +1425,10 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
                             Just (CalendarZoomStart ZoomOut)
                         , content =
                             Accessibility.Styled.text "-"
+                        }
+                    , viewIcon
+                        { onClick = Just (HistoryIncrementDate { days = 1 })
+                        , content = Accessibility.Styled.text ">"
                         }
                     ]
                 , body = viewHistoryEdit timerSet historyEdit
