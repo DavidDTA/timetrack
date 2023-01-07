@@ -782,13 +782,14 @@ globalCss { remote, time } =
 
 
 viewBody ({ authentication } as model) =
-    [ viewFlexFixedHeader
+    [ viewFlexContainer
         { header =
             [ viewMenuIcon model
             , viewCalendarIcon
             , viewLoadingIcon model
             , viewErrorsIcon model
             ]
+        , footer = []
         , body =
             case viewPage model of
                 Nothing ->
@@ -797,16 +798,29 @@ viewBody ({ authentication } as model) =
                 Just content ->
                     content
         , scrollContainerId = Nothing
+        , direction = Column
         }
     ]
 
 
-viewFlexFixedHeader { header, body, scrollContainerId } =
+type FlexDirection
+    = Row
+    | Column
+
+
+viewFlexContainer { header, footer, body, scrollContainerId, direction } =
     Accessibility.Styled.div
         [ Html.Styled.Attributes.css
             [ Css.height (Css.pct 100)
             , Css.displayFlex
-            , Css.flexDirection Css.column
+            , Css.flexDirection
+                (case direction of
+                    Row ->
+                        Css.row
+
+                    Column ->
+                        Css.column
+                )
             ]
         ]
         [ Accessibility.Styled.div
@@ -830,6 +844,12 @@ viewFlexFixedHeader { header, body, scrollContainerId } =
                    )
             )
             body
+        , Accessibility.Styled.div
+            [ Html.Styled.Attributes.css
+                [ Css.flexGrow Css.zero
+                ]
+            ]
+            footer
         ]
 
 
@@ -1384,22 +1404,30 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
                 )
                 [ Accessibility.Styled.text title ]
     in
-    [ viewFlexFixedHeader
+    [ viewFlexContainer
         { header =
-            [ viewIcon
-                { onClick =
-                    Just (CalendarZoomStart ZoomIn)
-                , content =
-                    Accessibility.Styled.text "+"
-                }
-            , viewIcon
-                { onClick =
-                    Just (CalendarZoomStart ZoomOut)
-                , content =
-                    Accessibility.Styled.text "-"
+            [ viewFlexContainer
+                { header = []
+                , footer =
+                    [ viewIcon
+                        { onClick =
+                            Just (CalendarZoomStart ZoomIn)
+                        , content =
+                            Accessibility.Styled.text "+"
+                        }
+                    , viewIcon
+                        { onClick =
+                            Just (CalendarZoomStart ZoomOut)
+                        , content =
+                            Accessibility.Styled.text "-"
+                        }
+                    ]
+                , body = viewHistoryEdit timerSet historyEdit
+                , scrollContainerId = Nothing
+                , direction = Row
                 }
             ]
-                ++ viewHistoryEdit timerSet historyEdit
+        , footer = []
         , body =
             [ Accessibility.Styled.div
                 [ Html.Styled.Attributes.css
@@ -1498,6 +1526,7 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
                 )
             ]
         , scrollContainerId = Just ids.calendarScrollContainer
+        , direction = Column
         }
     ]
 
