@@ -340,7 +340,21 @@ update msg model =
                 ( error, cmd ) =
                     case result of
                         Ok { scene, viewport } ->
-                            ( Nothing, Browser.Dom.setViewportOf ids.calendarScrollContainer 0 (viewport.y / (scene.height - viewport.height) * (scene.height * factor - viewport.height)) |> Task.attempt CalendarZoomFinished )
+                            ( Nothing
+                            , Browser.Dom.setViewportOf ids.calendarScrollContainer
+                                0
+                                (if viewport.y == 0 then
+                                    0
+
+                                 else if viewport.y + viewport.height == scene.height then
+                                    -- this overshoots, but the browser will clamp and it allows us to avoid rounding errors bringing us slightly before the end of the view
+                                    scene.height * factor
+
+                                 else
+                                    (viewport.y + (viewport.height / 2)) * factor - (viewport.height / 2)
+                                )
+                                |> Task.attempt CalendarZoomFinished
+                            )
 
                         Err (Browser.Dom.NotFound id) ->
                             ( Just (DomNodeNotFound id), Cmd.none )
