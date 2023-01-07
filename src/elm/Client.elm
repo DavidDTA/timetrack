@@ -1256,7 +1256,7 @@ type BlockTimerIds
     | BlockTimerIdsMultiple { first : Maybe TimerSet.TimerId, second : Maybe TimerSet.TimerId, reversedRemainder : List (Maybe TimerSet.TimerId) }
 
 
-viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, historyEdit } =
+viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, historySelectedDate, historyEdit } as model) =
     let
         leftMargin =
             Pixels.pixels 60
@@ -1406,36 +1406,35 @@ viewCalendar { now, zone } timerSet { calendarZoomLevel, historySelectedDate, hi
     in
     [ viewFlexContainer
         { header =
-            [ viewFlexContainer
-                { header =
-                    [ viewIcon
-                        { onClick = Just (HistoryIncrementDate { days = -1 })
-                        , content = Accessibility.Styled.text "<"
-                        }
-                    ]
-                , footer =
-                    [ viewIcon
-                        { onClick =
-                            Just (CalendarZoomStart ZoomIn)
-                        , content =
-                            Accessibility.Styled.text "+"
-                        }
-                    , viewIcon
-                        { onClick =
-                            Just (CalendarZoomStart ZoomOut)
-                        , content =
-                            Accessibility.Styled.text "-"
-                        }
-                    , viewIcon
-                        { onClick = Just (HistoryIncrementDate { days = 1 })
-                        , content = Accessibility.Styled.text ">"
-                        }
-                    ]
-                , body = viewHistoryEdit timerSet historyEdit
-                , scrollContainerId = Nothing
-                , direction = Row
-                }
+            [ Accessibility.Styled.div [ Html.Styled.Attributes.css [ Css.textAlign Css.center ] ]
+                [ viewIcon
+                    { onClick = Just (HistoryIncrementDate { days = -1 })
+                    , content = Accessibility.Styled.text "<"
+                    }
+                , historySelectedDate
+                    |> SelectedDate.getDate now zone
+                    |> Date.toIsoString
+                    |> Accessibility.Styled.text
+                , viewIcon
+                    { onClick =
+                        Just (CalendarZoomStart ZoomIn)
+                    , content =
+                        Accessibility.Styled.text "+"
+                    }
+                , viewIcon
+                    { onClick =
+                        Just (CalendarZoomStart ZoomOut)
+                    , content =
+                        Accessibility.Styled.text "-"
+                    }
+                , viewIcon
+                    { onClick = Just (HistoryIncrementDate { days = 1 })
+                    , content = Accessibility.Styled.text ">"
+                    }
+                ]
             ]
+                ++ viewTimerSelect initializedTime timerSet model
+                ++ viewHistoryEdit timerSet historyEdit
         , footer = []
         , body =
             [ Accessibility.Styled.div
