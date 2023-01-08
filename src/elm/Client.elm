@@ -1294,6 +1294,18 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
             leftMargin
                 |> Quantity.plus (Pixels.pixels 24)
 
+        ruleMinute =
+            Pixels.pixels 12
+
+        ruleFiveMinutes =
+            Pixels.pixels 18
+
+        ruleFifteenMinutes =
+            Pixels.pixels 24
+
+        ruleThirtyMinutes =
+            Pixels.pixels 30
+
         minEventDuration =
             buttonSize
                 |> Quantity.at_ (pixelsPerHour calendarZoomLevel)
@@ -1340,59 +1352,52 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
 
         rules =
             Time.Extra.range Time.Extra.Hour 1 zone dayStart (Time.Extra.add Time.Extra.Millisecond 1 zone dayEnd)
+                |> List.drop 1
 
         timeChange =
-            rules
-                |> List.map (\hour -> Time.Extra.toOffset zone hour)
-                |> List.Extra.unique
-                |> List.length
-                |> flip (>) 1
+            Time.Extra.toOffset zone dayStart /= Time.Extra.toOffset zone dayEnd
 
-        labels =
-            rules
-                |> List.map
-                    (\hour ->
+        label hour =
+            let
+                twentyFourHour =
+                    Time.toHour zone hour
+
+                timeLabel =
+                    if twentyFourHour == 0 then
+                        "12am"
+
+                    else if twentyFourHour < 12 then
+                        String.fromInt twentyFourHour ++ "am"
+
+                    else if twentyFourHour == 12 then
+                        "12pm"
+
+                    else
+                        String.fromInt (twentyFourHour - 12) ++ "pm"
+
+                offsetLabel =
+                    if timeChange then
                         let
-                            twentyFourHour =
-                                Time.toHour zone hour
+                            offsetMinutes =
+                                Time.Extra.toOffset zone hour
 
-                            timeLabel =
-                                if twentyFourHour == 0 then
-                                    "12am"
-
-                                else if twentyFourHour < 12 then
-                                    String.fromInt twentyFourHour ++ "am"
-
-                                else if twentyFourHour == 12 then
-                                    "12pm"
-
-                                else
-                                    String.fromInt (twentyFourHour - 12) ++ "pm"
-
-                            offsetLabel =
-                                if timeChange then
-                                    let
-                                        offsetMinutes =
-                                            Time.Extra.toOffset zone hour
-
-                                        offsetHours =
-                                            toFloat offsetMinutes / 60
-                                    in
-                                    " (UTC"
-                                        ++ (if offsetHours >= 0 then
-                                                "+"
-
-                                            else
-                                                ""
-                                           )
-                                        ++ String.fromFloat offsetHours
-                                        ++ ")"
+                            offsetHours =
+                                toFloat offsetMinutes / 60
+                        in
+                        " (UTC"
+                            ++ (if offsetHours >= 0 then
+                                    "+"
 
                                 else
                                     ""
-                        in
-                        Tuple.pair hour (timeLabel ++ offsetLabel)
-                    )
+                               )
+                            ++ String.fromFloat offsetHours
+                            ++ ")"
+
+                    else
+                        ""
+            in
+            timeLabel ++ offsetLabel
 
         pixelOffset time =
             Duration.from dayStart time
@@ -1478,10 +1483,9 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                     , Css.position Css.relative
                     ]
                 ]
-                ((labels
-                    |> List.drop 1
+                ((rules
                     |> List.map
-                        (\( hour, label ) ->
+                        (\hour ->
                             Accessibility.Styled.div
                                 [ Html.Styled.Attributes.css
                                     [ Css.position Css.absolute
@@ -1496,7 +1500,7 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                                     , Css.borderBottomColor colors.gridline
                                     ]
                                 ]
-                                [ Accessibility.Styled.text label ]
+                                [ Accessibility.Styled.text (label hour) ]
                         )
                  )
                     ++ (dailyHistory
