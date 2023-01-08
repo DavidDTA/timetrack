@@ -1302,7 +1302,7 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
             leftMargin
                 |> Quantity.plus (Pixels.pixels 24)
 
-        ruleMinute =
+        ruleOneMinute =
             Pixels.pixels 12
 
         ruleFiveMinutes =
@@ -1358,8 +1358,13 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                     dayStart
                     (timeMin now dayEnd)
 
+        tickSize =
+            [ 1, 5, 15, 30 ]
+                |> List.Extra.find (toFloat >> Duration.minutes >> Quantity.greaterThanOrEqualTo minEventDuration)
+                |> Maybe.withDefault 60
+
         rules =
-            Time.Extra.range Time.Extra.Hour 1 zone dayStart (Time.Extra.add Time.Extra.Millisecond 1 zone dayEnd)
+            Time.Extra.range Time.Extra.Minute tickSize zone dayStart (Time.Extra.add Time.Extra.Millisecond 1 zone dayEnd)
                 |> List.drop 1
 
         timeChange =
@@ -1492,22 +1497,80 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                 ]
                 ((rules
                     |> List.map
-                        (\hour ->
+                        (\time ->
+                            let
+                                minute =
+                                    Time.toMinute zone time
+                            in
                             Accessibility.Styled.div
                                 [ Html.Styled.Attributes.css
                                     [ Css.position Css.absolute
-                                    , Css.width (Css.pct 100)
+                                    , Css.left
+                                        (if minute == 0 then
+                                            cssPx Quantity.zero
+
+                                         else if minute == 30 then
+                                            cssPx (leftMargin |> Quantity.minus ruleThirtyMinutes)
+
+                                         else if (minute |> modBy 15) == 0 then
+                                            cssPx (leftMargin |> Quantity.minus ruleFifteenMinutes)
+
+                                         else if (minute |> modBy 5) == 0 then
+                                            cssPx (leftMargin |> Quantity.minus ruleFiveMinutes)
+
+                                         else
+                                            cssPx (leftMargin |> Quantity.minus ruleOneMinute)
+                                        )
+                                    , Css.width
+                                        (if minute == 0 then
+                                            cssPx leftMargin
+
+                                         else if minute == 30 then
+                                            cssPx ruleThirtyMinutes
+
+                                         else if (minute |> modBy 15) == 0 then
+                                            cssPx ruleFifteenMinutes
+
+                                         else if (minute |> modBy 5) == 0 then
+                                            cssPx ruleFiveMinutes
+
+                                         else
+                                            cssPx ruleOneMinute
+                                        )
                                     , Css.bottom
                                         (Css.calc (Css.pct 100)
                                             Css.minus
-                                            (cssPx (pixelOffset hour))
+                                            (cssPx (pixelOffset time))
                                         )
                                     , Css.borderBottomWidth (cssPx Pixels.pixel)
                                     , Css.borderBottomStyle Css.solid
                                     , Css.borderBottomColor colors.gridline
+                                    , Css.textAlign Css.right
                                     ]
                                 ]
-                                [ Accessibility.Styled.text (label hour) ]
+                                [ Accessibility.Styled.span
+                                    [ Html.Styled.Attributes.css
+                                        [ Css.position Css.absolute
+                                        , Css.right Css.zero
+                                        , Css.bottom Css.zero
+                                        ]
+                                    ]
+                                    [ Accessibility.Styled.text
+                                        (if minute == 0 then
+                                            label time
+
+                                         else if
+                                            (minute == 30 && tickSize < 30)
+                                                || ((minute |> modBy 15) == 0 && tickSize < 15)
+                                                || ((minute |> modBy 5) == 0 && tickSize < 5)
+                                         then
+                                            ":" ++ pad minute
+
+                                         else
+                                            ""
+                                        )
+                                    ]
+                                ]
                         )
                  )
                     ++ (dailyHistory
