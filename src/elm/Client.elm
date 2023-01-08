@@ -144,6 +144,7 @@ type Page
 type CalendarZoomOperation
     = ZoomIn
     | ZoomOut
+    | ZoomNow
 
 
 type Msg
@@ -325,6 +326,9 @@ update msg model =
 
                                 ZoomOut ->
                                     -1
+
+                                ZoomNow ->
+                                    0
                               )
                         )
 
@@ -343,7 +347,27 @@ update msg model =
                             ( Nothing
                             , Browser.Dom.setViewportOf ids.calendarScrollContainer
                                 0
-                                (if viewport.y == 0 then
+                                (if zoomOperation == ZoomNow then
+                                    case model.time of
+                                        TimeInitialized { now, zone } ->
+                                            let
+                                                dayStart =
+                                                    Time.Extra.floor Time.Extra.Day zone now
+
+                                                dayEnd =
+                                                    Time.Extra.ceiling Time.Extra.Day zone now
+
+                                                percentThroughDay =
+                                                    Quantity.ratio
+                                                        (Duration.from dayStart now)
+                                                        (Duration.from dayStart dayEnd)
+                                            in
+                                            (percentThroughDay * scene.height) - (viewport.height / 2)
+
+                                        TimeUninitialized _ ->
+                                            0
+
+                                 else if viewport.y == 0 then
                                     0
 
                                  else if viewport.y + viewport.height == scene.height then
@@ -368,6 +392,12 @@ update msg model =
 
                         Just e ->
                             e :: model.errors
+                , historySelectedDate =
+                    if zoomOperation == ZoomNow then
+                        SelectedDate.unselected
+
+                    else
+                        model.historySelectedDate
               }
             , cmd
             )
@@ -1419,6 +1449,12 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                         Just (CalendarZoomStart ZoomIn)
                     , content =
                         Accessibility.Styled.text "+"
+                    }
+                , viewIcon
+                    { onClick =
+                        Just (CalendarZoomStart ZoomNow)
+                    , content =
+                        Accessibility.Styled.text "⌖"
                     }
                 , viewIcon
                     { onClick =
