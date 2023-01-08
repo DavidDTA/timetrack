@@ -1052,16 +1052,24 @@ buttonSize =
     Pixels.pixels 24
 
 
+buttonMargin =
+    Pixels.pixels 8
+
+
+cssPx pixels =
+    Css.px (Pixels.toFloat pixels)
+
+
 viewIcon { onClick, content } =
     Accessibility.Styled.button
         ([ Html.Styled.Attributes.css
             [ Css.display Css.inlineBlock
-            , Css.width (Css.px (Pixels.toFloat buttonSize))
-            , Css.height (Css.px (Pixels.toFloat buttonSize))
-            , Css.margin (Css.px 8)
-            , Css.fontSize (Css.px (Pixels.toFloat buttonSize))
+            , Css.width (cssPx buttonSize)
+            , Css.height (cssPx buttonSize)
+            , Css.margin (cssPx buttonMargin)
+            , Css.fontSize (cssPx buttonSize)
             , Css.textAlign Css.center
-            , Css.lineHeight (Css.px (Pixels.toFloat buttonSize))
+            , Css.lineHeight (cssPx buttonSize)
             , Css.backgroundColor Css.transparent
             , Css.border Css.zero
             , Css.color Css.inherit
@@ -1415,14 +1423,14 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                 (Html.Styled.Attributes.css
                     [ Css.position Css.absolute
                     , Css.displayFlex
-                    , Css.top (Css.px (top |> Pixels.toFloat))
-                    , Css.height (Css.px (height |> Pixels.toFloat))
-                    , Css.left (Css.px (Pixels.toFloat left))
+                    , Css.top (cssPx top)
+                    , Css.height (cssPx height)
+                    , Css.left (cssPx left)
                     , Css.right Css.zero
                     , Css.backgroundColor color
                     , Css.overflow Css.hidden
-                    , Css.fontSize (Css.px (Pixels.toFloat buttonSize))
-                    , Css.lineHeight (Css.px (Pixels.toFloat buttonSize))
+                    , Css.fontSize (cssPx buttonSize)
+                    , Css.lineHeight (cssPx buttonSize)
                     , Css.border Css.zero
                     , Css.color Css.inherit
                     , Css.textAlign Css.start
@@ -1479,8 +1487,7 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
         , body =
             [ Accessibility.Styled.div
                 [ Html.Styled.Attributes.css
-                    [ Css.height (Css.px 960)
-                    , Css.position Css.relative
+                    [ Css.position Css.relative
                     ]
                 ]
                 ((rules
@@ -1493,9 +1500,9 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                                     , Css.bottom
                                         (Css.calc (Css.pct 100)
                                             Css.minus
-                                            (Css.px (Pixels.toFloat (pixelOffset hour)))
+                                            (cssPx (pixelOffset hour))
                                         )
-                                    , Css.borderBottomWidth (Css.px 1)
+                                    , Css.borderBottomWidth (cssPx Pixels.pixel)
                                     , Css.borderBottomStyle Css.solid
                                     , Css.borderBottomColor colors.gridline
                                     ]
