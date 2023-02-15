@@ -1283,7 +1283,8 @@ timerDisplayName timerSet timerId =
 
 
 pixelsPerHour calendarZoomLevel =
-    Pixels.pixels 40
+    buttonSize
+        |> Quantity.multiplyBy 2
         |> Quantity.per Duration.hour
         |> Quantity.multiplyBy (2 ^ calendarZoomLevel |> toFloat)
 
