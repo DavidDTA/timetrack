@@ -1302,16 +1302,16 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
             leftMargin
                 |> Quantity.plus (Pixels.pixels 24)
 
-        ruleOneMinute =
+        tickSizeOneMinute =
             Pixels.pixels 12
 
-        ruleFiveMinutes =
+        tickSizeFiveMinutes =
             Pixels.pixels 18
 
-        ruleFifteenMinutes =
+        tickSizeFifteenMinutes =
             Pixels.pixels 24
 
-        ruleThirtyMinutes =
+        tickSizeThirtyMinutes =
             Pixels.pixels 30
 
         minEventDuration =
@@ -1510,32 +1510,32 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                                             cssPx Quantity.zero
 
                                          else if minute == 30 then
-                                            cssPx (leftMargin |> Quantity.minus ruleThirtyMinutes)
+                                            cssPx (leftMargin |> Quantity.minus tickSizeThirtyMinutes)
 
                                          else if (minute |> modBy 15) == 0 then
-                                            cssPx (leftMargin |> Quantity.minus ruleFifteenMinutes)
+                                            cssPx (leftMargin |> Quantity.minus tickSizeFifteenMinutes)
 
                                          else if (minute |> modBy 5) == 0 then
-                                            cssPx (leftMargin |> Quantity.minus ruleFiveMinutes)
+                                            cssPx (leftMargin |> Quantity.minus tickSizeFiveMinutes)
 
                                          else
-                                            cssPx (leftMargin |> Quantity.minus ruleOneMinute)
+                                            cssPx (leftMargin |> Quantity.minus tickSizeOneMinute)
                                         )
                                     , Css.width
                                         (if minute == 0 then
                                             cssPx leftMargin
 
                                          else if minute == 30 then
-                                            cssPx ruleThirtyMinutes
+                                            cssPx tickSizeThirtyMinutes
 
                                          else if (minute |> modBy 15) == 0 then
-                                            cssPx ruleFifteenMinutes
+                                            cssPx tickSizeFifteenMinutes
 
                                          else if (minute |> modBy 5) == 0 then
-                                            cssPx ruleFiveMinutes
+                                            cssPx tickSizeFiveMinutes
 
                                          else
-                                            cssPx ruleOneMinute
+                                            cssPx tickSizeOneMinute
                                         )
                                     , Css.bottom
                                         (Css.calc (Css.pct 100)
