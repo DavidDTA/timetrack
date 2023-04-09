@@ -634,7 +634,16 @@ update msg model =
             )
 
         Navigate page ->
-            ( { model | page = page :: model.page }, Cmd.none )
+            ( { model
+                | page =
+                    if page == currentPage model.page then
+                        model.page
+
+                    else
+                        page :: model.page
+              }
+            , Cmd.none
+            )
 
         NavigateBack ->
             ( { model | page = List.drop 1 model.page }, Cmd.none )
@@ -960,8 +969,12 @@ viewPage ({ authentication } as model) =
             viewPageAuthenticated model
 
 
+currentPage page =
+    Maybe.withDefault Calendar (List.head page)
+
+
 viewPageAuthenticated ({ page, pending, remote, time } as model) =
-    case Maybe.withDefault Calendar (List.head page) of
+    case currentPage page of
         Totals ->
             case ( time, remote.timerSet ) of
                 ( TimeInitialized initializedTime, Just timerSet ) ->
