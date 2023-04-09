@@ -23,6 +23,7 @@ import Json.Encode
 import List.Extra
 import Material.Icons.Toggle
 import Maybe.Extra
+import Parser exposing ((|.), (|=))
 import Pixels
 import Quantity
 import Result.Extra
@@ -109,14 +110,12 @@ type alias TimerNameEdit =
 
 
 type alias HistoryEdit =
-    { originalStart : Time.Posix
-    , originalEnd : Time.Posix
-    , originalTimerId : Maybe TimerSet.TimerId
-    , startHour : Int
-    , startMinute : Int
-    , endHour : Int
-    , endMinute : Int
-    , timerId : Maybe TimerSet.TimerId
+    { endInitial : Time.Posix
+    , endInput : Maybe String
+    , startInitial : Time.Posix
+    , startInput : Maybe String
+    , timerIdInitial : Maybe TimerSet.TimerId
+    , timerIdInput : Maybe String
     , zone : Time.Zone
     }
 
@@ -158,10 +157,8 @@ type Msg
     | UpdateZoneError TimeZone.Error
     | HistoryEditStart { timerId : Maybe TimerSet.TimerId, start : Time.Posix, end : Time.Posix }
     | HistoryEditUpdateTimerId String
-    | HistoryEditUpdateStartHours String
-    | HistoryEditUpdateStartMinutes String
-    | HistoryEditUpdateEndHours String
-    | HistoryEditUpdateEndMinutes String
+    | HistoryEditUpdateStart String
+    | HistoryEditUpdateEnd String
     | HistoryEditCancel
     | HistoryEditCommit
     | IncrementDate { days : Int }
@@ -220,21 +217,6 @@ sub _ =
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    let
-        updateHistoryEdit parser mapper raw =
-            case parser raw of
-                Just selection ->
-                    ( { model
-                        | historyEdit =
-                            model.historyEdit
-                                |> Maybe.map (mapper selection)
-                      }
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    ( { model | errors = InvalidHistoryEdit raw :: model.errors }, Cmd.none )
-    in
     case msg of
         ApiResponse result ->
             case result of
@@ -461,14 +443,12 @@ update msg model =
                     ( { model
                         | historyEdit =
                             Just
-                                { originalTimerId = timerId
-                                , originalStart = start
-                                , originalEnd = end
-                                , startHour = startParts.hour
-                                , startMinute = startParts.minute
-                                , endHour = endParts.hour
-                                , endMinute = endParts.minute
-                                , timerId = timerId
+                                { endInitial = end
+                                , endInput = Nothing
+                                , startInitial = start
+                                , startInput = Nothing
+                                , timerIdInitial = timerId
+                                , timerIdInput = Nothing
                                 , zone = zone
                                 }
                       }
@@ -476,28 +456,46 @@ update msg model =
                     )
 
         HistoryEditUpdateTimerId raw ->
-            updateHistoryEdit
-                (\raw_ ->
-                    if raw_ == "" then
-                        Just Nothing
+            ( { model
+                | historyEdit =
+                    model.historyEdit
+                        |> Maybe.map
+                            (\historyEdit ->
+                                { historyEdit
+                                    | timerIdInput = Just raw
+                                }
+                            )
+              }
+            , Cmd.none
+            )
 
-                    else
-                        raw_ |> String.toInt |> Maybe.map TimerSet.timerIdFromRaw |> Just
-                )
-                (\selection edit -> { edit | timerId = selection })
-                raw
+        HistoryEditUpdateStart raw ->
+            ( { model
+                | historyEdit =
+                    model.historyEdit
+                        |> Maybe.map
+                            (\historyEdit ->
+                                { historyEdit
+                                    | startInput = Just raw
+                                }
+                            )
+              }
+            , Cmd.none
+            )
 
-        HistoryEditUpdateStartHours raw ->
-            updateHistoryEdit String.toInt (\selection edit -> { edit | startHour = selection }) raw
-
-        HistoryEditUpdateStartMinutes raw ->
-            updateHistoryEdit String.toInt (\selection edit -> { edit | startMinute = selection }) raw
-
-        HistoryEditUpdateEndHours raw ->
-            updateHistoryEdit String.toInt (\selection edit -> { edit | endHour = selection }) raw
-
-        HistoryEditUpdateEndMinutes raw ->
-            updateHistoryEdit String.toInt (\selection edit -> { edit | endMinute = selection }) raw
+        HistoryEditUpdateEnd raw ->
+            ( { model
+                | historyEdit =
+                    model.historyEdit
+                        |> Maybe.map
+                            (\historyEdit ->
+                                { historyEdit
+                                    | endInput = Just raw
+                                }
+                            )
+              }
+            , Cmd.none
+            )
 
         HistoryEditCancel ->
             ( { model | historyEdit = Nothing }, Cmd.none )
@@ -507,61 +505,117 @@ update msg model =
                 Nothing ->
                     ( { model | errors = Uninitialized :: model.errors }, Cmd.none )
 
-                Just { originalTimerId, originalStart, originalEnd, startHour, startMinute, endHour, endMinute, timerId, zone } ->
+                Just { endInitial, endInput, startInitial, startInput, timerIdInitial, timerIdInput, zone } ->
                     let
-                        originalStartParts =
-                            Time.Extra.posixToParts zone originalStart
-
-                        originalEndParts =
-                            Time.Extra.posixToParts zone originalEnd
-
-                        startSame =
-                            originalStartParts.hour == startHour && originalStartParts.minute == startMinute
-
-                        endSame =
-                            originalEndParts.hour == endHour && originalEndParts.minute == endMinute
-
-                        timerSame =
-                            originalTimerId == timerId
-
-                        start =
-                            if startSame then
-                                originalStart
-
-                            else
-                                Time.Extra.partsToPosix zone { originalStartParts | hour = startHour, minute = startMinute, second = 0, millisecond = 0 }
-
-                        end =
-                            if endSame then
-                                originalEnd
-
-                            else if endHour == 0 && endMinute == 0 then
-                                Time.Extra.ceiling Time.Extra.Day zone originalStart
-
-                            else
-                                Time.Extra.partsToPosix zone { originalStartParts | hour = endHour, minute = endMinute, second = 0, millisecond = 0 }
-
                         withEditReset =
                             { model | historyEdit = Nothing }
+
+                        parseTimeInput midnightIsNextDay initial input =
+                            let
+                                dateInitial =
+                                    Date.fromPosix zone initial
+                            in
+                            input
+                                |> Maybe.map
+                                    (Parser.run
+                                        (Parser.succeed (\hour minute -> { hour = hour, minute = minute })
+                                            |. Parser.chompWhile (\c -> c == '0')
+                                            |= Parser.int
+                                            |. Parser.symbol ":"
+                                            |. Parser.chompWhile (\c -> c == '0')
+                                            |= Parser.int
+                                            |. Parser.end
+                                        )
+                                        >> Result.toMaybe
+                                        >> Maybe.andThen
+                                            (\{ hour, minute } ->
+                                                let
+                                                    date =
+                                                        if midnightIsNextDay && hour == 0 && minute == 0 then
+                                                            Date.add Date.Days 1 dateInitial
+
+                                                        else
+                                                            dateInitial
+                                                in
+                                                case
+                                                    partsToPosixFull zone
+                                                        { year = Date.year date
+                                                        , month = Date.month date
+                                                        , day = Date.day date
+                                                        , hour = hour
+                                                        , minute = minute
+                                                        , second = 0
+                                                        , millisecond = 0
+                                                        }
+                                                of
+                                                    [ { posix } ] ->
+                                                        Just posix
+
+                                                    _ ->
+                                                        Nothing
+                                            )
+                                    )
+                                |> Maybe.withDefault (Just initial)
+
+                        parseTimerIdInput initial input =
+                            input
+                                |> Maybe.map
+                                    (\raw ->
+                                        if raw == "" then
+                                            Just Nothing
+
+                                        else
+                                            String.toInt raw |> Maybe.map (TimerSet.timerIdFromRaw >> Just)
+                                    )
+                                |> Maybe.withDefault (Just timerIdInitial)
                     in
-                    if startSame && endSame && timerSame then
-                        ( withEditReset, Cmd.none )
+                    case ( parseTimeInput False startInitial startInput, parseTimeInput True endInitial endInput, parseTimerIdInput timerIdInitial timerIdInput ) of
+                        ( Just startParsed, Just endParsed, Just timerId ) ->
+                            let
+                                startSame =
+                                    Time.Extra.floor Time.Extra.Minute zone startInitial == startParsed
 
-                    else if timerSame && originalTimerId /= Nothing then
-                        let
-                            ( withRangeReset, cmd1 ) =
+                                endSame =
+                                    Time.Extra.floor Time.Extra.Minute zone endInitial == endParsed
+
+                                timerSame =
+                                    timerIdInitial == timerId
+
+                                start =
+                                    if startSame then
+                                        startInitial
+
+                                    else
+                                        startParsed
+
+                                end =
+                                    if endSame then
+                                        endInitial
+
+                                    else
+                                        endParsed
+                            in
+                            if startSame && endSame && timerSame then
+                                ( withEditReset, Cmd.none )
+
+                            else if timerSame && timerIdInitial /= Nothing then
+                                let
+                                    ( withRangeReset, cmd1 ) =
+                                        withEditReset
+                                            |> enqueue (Api.TimersSetActive { timerId = Nothing, start = startInitial, end = Just endInitial })
+
+                                    ( withNewRange, cmd2 ) =
+                                        withRangeReset
+                                            |> enqueue (Api.TimersSetActive { timerId = timerId, start = start, end = Just end })
+                                in
+                                ( withNewRange, Cmd.batch [ cmd1, cmd2 ] )
+
+                            else
                                 withEditReset
-                                    |> enqueue (Api.TimersSetActive { timerId = Nothing, start = originalStart, end = Just originalEnd })
-
-                            ( withNewRange, cmd2 ) =
-                                withRangeReset
                                     |> enqueue (Api.TimersSetActive { timerId = timerId, start = start, end = Just end })
-                        in
-                        ( withNewRange, Cmd.batch [ cmd1, cmd2 ] )
 
-                    else
-                        withEditReset
-                            |> enqueue (Api.TimersSetActive { timerId = timerId, start = start, end = Just end })
+                        _ ->
+                            ( { withEditReset | errors = InvalidHistoryEdit "couldn't parse inputs" :: model.errors }, Cmd.none )
 
         IncrementDate { days } ->
             ( case model.time of
@@ -1213,37 +1267,37 @@ viewHistoryEdit timerSet historyEdit =
         Nothing ->
             []
 
-        Just { originalTimerId, originalStart, originalEnd, zone } ->
-            viewTimeSelect HistoryEditUpdateStartHours HistoryEditUpdateStartMinutes zone originalStart
-                ++ [ Accessibility.Styled.text strings.historyEditRange ]
-                ++ viewTimeSelect HistoryEditUpdateEndHours HistoryEditUpdateEndMinutes zone originalEnd
-                ++ [ viewSelect HistoryEditUpdateTimerId
-                        ({ value = ""
-                         , selected = originalTimerId == Nothing
-                         , label =
-                            timerDisplayName timerSet Nothing
-                         }
-                            :: (TimerSet.listTimerIds timerSet
-                                    |> List.map
-                                        (\timerId ->
-                                            { value = TimerSet.timerIdToRaw timerId |> String.fromInt
-                                            , selected =
-                                                Just timerId == originalTimerId
-                                            , label =
-                                                timerDisplayName timerSet (Just timerId)
-                                            }
-                                        )
-                               )
-                        )
-                   , Accessibility.Styled.button
-                        [ Html.Styled.Events.onClick HistoryEditCommit
-                        ]
-                        [ Accessibility.Styled.text strings.historyEditConfirm ]
-                   , Accessibility.Styled.button
-                        [ Html.Styled.Events.onClick HistoryEditCancel
-                        ]
-                        [ Accessibility.Styled.text strings.historyEditCancel ]
-                   ]
+        Just { endInitial, endInput, startInitial, startInput, timerIdInitial, zone } ->
+            [ viewTimeSelect HistoryEditUpdateStart zone startInitial startInput
+            , Accessibility.Styled.text strings.historyEditRange
+            , viewTimeSelect HistoryEditUpdateEnd zone endInitial endInput
+            , viewSelect HistoryEditUpdateTimerId
+                ({ value = ""
+                 , selected = timerIdInitial == Nothing
+                 , label =
+                    timerDisplayName timerSet Nothing
+                 }
+                    :: (TimerSet.listTimerIds timerSet
+                            |> List.map
+                                (\timerId ->
+                                    { value = TimerSet.timerIdToRaw timerId |> String.fromInt
+                                    , selected =
+                                        Just timerId == timerIdInitial
+                                    , label =
+                                        timerDisplayName timerSet (Just timerId)
+                                    }
+                                )
+                       )
+                )
+            , Accessibility.Styled.button
+                [ Html.Styled.Events.onClick HistoryEditCommit
+                ]
+                [ Accessibility.Styled.text strings.historyEditConfirm ]
+            , Accessibility.Styled.button
+                [ Html.Styled.Events.onClick HistoryEditCancel
+                ]
+                [ Accessibility.Styled.text strings.historyEditCancel ]
+            ]
 
 
 viewSelect onInput options =
@@ -1262,18 +1316,11 @@ viewSelect onInput options =
         )
 
 
-viewTimeSelect updateHours updateMinutes zone posix =
-    let
-        parts =
-            Time.Extra.posixToParts zone posix
-    in
-    [ List.range 0 23
-        |> List.map (\hourOption -> { value = String.fromInt hourOption, label = String.fromInt hourOption, selected = parts.hour == hourOption })
-        |> viewSelect updateHours
-    , List.range 0 59
-        |> List.map (\minuteOption -> { value = String.fromInt minuteOption, label = String.fromInt minuteOption, selected = parts.minute == minuteOption })
-        |> viewSelect updateMinutes
-    ]
+viewTimeSelect updateMsg zone default value =
+    Accessibility.Styled.inputText (value |> Maybe.withDefault (pad (Time.toHour zone default) ++ ":" ++ pad (Time.toMinute zone default)))
+        [ Html.Styled.Attributes.type_ "time"
+        , Html.Styled.Events.onInput updateMsg
+        ]
 
 
 timerDisplayName timerSet timerId =
@@ -1396,7 +1443,10 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                                 Time.Extra.toOffset zone hour
 
                             offsetHours =
-                                toFloat offsetMinutes / 60
+                                offsetMinutes // 60
+
+                            offsetRemainderMinutes =
+                                abs (offsetMinutes - 60 * offsetHours)
                         in
                         " (UTC"
                             ++ (if offsetHours >= 0 then
@@ -1405,7 +1455,13 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                                 else
                                     ""
                                )
-                            ++ String.fromFloat offsetHours
+                            ++ String.fromInt offsetHours
+                            ++ (if offsetRemainderMinutes == 0 then
+                                    ""
+
+                                else
+                                    ":" ++ pad offsetRemainderMinutes
+                               )
                             ++ ")"
 
                     else
@@ -1848,6 +1904,23 @@ viewDuration duration =
         [ Accessibility.Styled.text (String.fromInt hours ++ ":" ++ pad minutes ++ ":" ++ pad seconds)
         , Accessibility.Styled.small [] [ Accessibility.Styled.text ("." ++ pad hundredths) ]
         ]
+
+
+
+{-
+   Limitation: The Elm Time library does not let you introspect timezones. Therefore, we can't generate all Posix times for a given local time from first principles. As an approximation, we check 3 hours in 15 minute increments in each direction from the answer given by Time.Extra.partsToPosix and check whether they have the same local time.
+-}
+
+
+partsToPosixFull zone parts =
+    let
+        unsafe =
+            Time.Extra.partsToPosix zone parts
+    in
+    List.range -12 12
+        |> List.map (\inc -> Time.Extra.add Time.Extra.Minute (15 * inc) zone unsafe)
+        |> List.filter (\candidate -> Time.Extra.posixToParts zone candidate == parts)
+        |> List.map (\posix -> { posix = posix, offset = Time.Extra.toOffset zone posix })
 
 
 pad x =
