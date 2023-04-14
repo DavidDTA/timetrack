@@ -84,11 +84,6 @@ type PendingCurrent
     | PendingError (List Api.Update)
 
 
-type ClearConfirmation
-    = ClearConfirmationHidden
-    | ClearConfirmationShown
-
-
 type TimeModel
     = TimeUninitialized
         { now : Maybe Time.Posix
