@@ -509,16 +509,27 @@ update msg model =
                             let
                                 dateInitial =
                                     Date.fromPosix zone initial
+
+                                parseInt =
+                                    Parser.chompWhile Char.isDigit
+                                        |> Parser.getChompedString
+                                        |> Parser.andThen
+                                            (\string ->
+                                                case String.toInt string of
+                                                    Just value ->
+                                                        Parser.succeed value
+
+                                                    Nothing ->
+                                                        Parser.problem ("Could not parse int: " ++ string)
+                                            )
                             in
                             input
                                 |> Maybe.map
                                     (Parser.run
                                         (Parser.succeed (\hour minute -> { hour = hour, minute = minute })
-                                            |. Parser.chompWhile (\c -> c == '0')
-                                            |= Parser.int
+                                            |= parseInt
                                             |. Parser.symbol ":"
-                                            |. Parser.chompWhile (\c -> c == '0')
-                                            |= Parser.int
+                                            |= parseInt
                                             |. Parser.end
                                         )
                                         >> Result.toMaybe
