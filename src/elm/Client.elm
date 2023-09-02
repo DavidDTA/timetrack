@@ -708,17 +708,23 @@ update msg model =
                                         TimeUninitialized _ ->
                                             ( { withClearedInput | errors = Uninitialized :: model.errors }, Cmd.none )
 
-                        Just (Select.DeselectMulti _) ->
+                        Just (Select.SelectBatch selected) ->
                             ( withClearedInput, Cmd.none )
 
-                        Just Select.ClearSingleSelectItem ->
+                        Just (Select.Deselect _) ->
+                            ( withClearedInput, Cmd.none )
+
+                        Just Select.Clear ->
                             ( withClearedInput, Cmd.none )
 
                         Just Select.FocusSet ->
                             ( withUpdatedSelectState, Cmd.none )
 
-                        Just Select.MenuInputCleared ->
-                            ( withClearedInput, Cmd.none )
+                        Just Select.Focus ->
+                            ( withUpdatedSelectState, Cmd.none )
+
+                        Just Select.Blur ->
+                            ( withUpdatedSelectState, Cmd.none )
             in
             ( withActionPerformed
             , Cmd.batch
