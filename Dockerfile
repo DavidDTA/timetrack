@@ -1,4 +1,4 @@
-FROM alpine:3.14.2
+FROM alpine:3.18.3
 
 RUN apk add --no-cache \
     bash \
@@ -22,11 +22,13 @@ RUN npm install \
     elm-live \
     firebase-tools
 ENV PATH=$PATH:/install/node_modules/.bin
+RUN echo 'PATH=$PATH:/install/node_modules/.bin' > /etc/profile
 
 WORKDIR /workdir/functions
 COPY functions/package.json functions/package-lock.json /workdir/functions/
 RUN npm ci
 VOLUME /workdir/functions/node_modules
+
 
 ENV HOME=/home
 WORKDIR /workdir
