@@ -1781,10 +1781,18 @@ viewTotals { now, zone } timerSet { historySelectedDate } =
                 |> List.reverse
     in
     [ Accessibility.Styled.h2 []
-        [ historySelectedDate
+        [ viewIcon
+            { onClick = Just (IncrementDate { days = -1 })
+            , content = Accessibility.Styled.text "<"
+            }
+        , historySelectedDate
             |> SelectedDate.getDate now zone
             |> Date.toIsoString
             |> Accessibility.Styled.text
+        , viewIcon
+            { onClick = Just (IncrementDate { days = 1 })
+            , content = Accessibility.Styled.text ">"
+            }
         ]
     ]
         ++ List.map
