@@ -1540,8 +1540,7 @@ viewCalendar ({ now, zone } as initializedTime) timerSet ({ calendarZoomLevel, h
                     { onClick = Just (IncrementDate { days = -1 })
                     , content = Accessibility.Styled.text "<"
                     }
-                , historySelectedDate
-                    |> SelectedDate.getDate now zone
+                , date
                     |> Date.toIsoString
                     |> Accessibility.Styled.text
                 , viewIcon
