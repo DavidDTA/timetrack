@@ -1738,7 +1738,7 @@ posixMax a b =
     Time.millisToPosix (max (Time.posixToMillis a) (Time.posixToMillis b))
 
 
-viewTotals { now, zone } timerSet { historySelectedDate, historyEdit } =
+viewTotals { now, zone } timerSet { historySelectedDate } =
     let
         date =
             historySelectedDate
