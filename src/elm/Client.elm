@@ -507,8 +507,8 @@ update msg model =
 
                         parseTimeInput midnightIsNextDay initial input =
                             let
-                                dateInitial =
-                                    Date.fromPosix zone initial
+                                startDate =
+                                    Date.fromPosix zone startInitial
 
                                 parseInt =
                                     Parser.chompWhile Char.isDigit
@@ -538,10 +538,10 @@ update msg model =
                                                 let
                                                     date =
                                                         if midnightIsNextDay && hour == 0 && minute == 0 then
-                                                            Date.add Date.Days 1 dateInitial
+                                                            Date.add Date.Days 1 startDate
 
                                                         else
-                                                            dateInitial
+                                                            startDate
                                                 in
                                                 case
                                                     partsToPosixFull zone
